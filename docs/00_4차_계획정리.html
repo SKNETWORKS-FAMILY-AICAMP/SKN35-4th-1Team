@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>4차 프로젝트 계획 정리</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm; }
+  body { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 10pt; line-height: 1.6; color: #1d1d1f; }
+  h1 { font-size: 20pt; margin: 0 0 4px; }
+  .sub { color: #666; margin-bottom: 18px; }
+  h2 { font-size: 14pt; border-bottom: 2px solid #1d1d1f; padding-bottom: 4px; margin-top: 26px; page-break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 16px 0 6px; page-break-after: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 9pt; page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid #ccc; padding: 5px 7px; vertical-align: top; text-align: left; }
+  th { background: #f2f2f2; }
+  pre { background: #f6f6f6; border: 1px solid #e2e2e2; padding: 8px 10px; font-size: 8.5pt; line-height: 1.45; white-space: pre-wrap; page-break-inside: avoid; }
+  code { font-family: Consolas, monospace; font-size: 8.8pt; background: #f2f2f2; padding: 0 3px; }
+  pre code { background: none; padding: 0; }
+  .tag { display: inline-block; font-size: 8pt; padding: 0 5px; border-radius: 3px; background: #e8f0fe; color: #1a56c4; }
+  .tag.pdf { background: #fdeee6; color: #b3440f; }
+  .box { border-left: 4px solid #1a56c4; background: #f4f7fd; padding: 8px 12px; margin: 10px 0; }
+  ul { margin: 4px 0 8px; padding-left: 20px; }
+  li { margin: 2px 0; }
+</style>
+</head>
+<body>
+
+<h1>4차 프로젝트 계획 정리</h1>
+<div class="sub">SKN35 1팀 · 3차 Docentalk 고도화 · 2026-11-03</div>
+
+<div class="box">
+<b>한 줄 요약</b><br>
+4차는 3차 Docentalk을 이어서 발전시키는 프로젝트예요. 할 일은 <b>Django로 백엔드 옮기기</b>, <b>LangGraph로 답변 흐름 정리</b>, <b>하이브리드 검색으로 낮았던 점수 올리기</b>, <b>AWS·Docker·CI/CD로 배포하기</b>예요. 프론트는 3차에서 배포한 Flutter Web을 그대로 써요.
+</div>
+
+<p><b>주제</b>: LLM을 연동한 내외부 문서 기반 질의응답 웹페이지 개발<br>
+<b>필수 산출물</b>: 요구사항 정의서, 화면설계서, LLM 연동 웹 애플리케이션, 시스템 구성도, 테스트 계획 및 결과 보고서</p>
+<p><span class="tag pdf">팀원 PDF</span> 표시는 팀원이 정리한 「아키텍처 구조 → 보완해야 할 점」에서 가져온 내용이에요.</p>
+
+<!-- ================================================================ -->
+<h2>1. 해야 할 일</h2>
+
+<p>3차와 4차가 어디서 다른지부터 보면 할 일이 정리돼요.</p>
+<table>
+<tr><th>항목</th><th>3차</th><th>4차</th><th>할 일</th></tr>
+<tr><td>백엔드</td><td>FastAPI (Railway)</td><td><b>Django</b> (+ Django Ninja)</td><td>API 틀만 새로 쓰고, RAG·서비스 로직은 옮겨 쓰기</td></tr>
+<tr><td>프론트</td><td>Flutter Web (Vercel)</td><td>Flutter Web 유지</td><td>API 주소와 응답 모양은 3차와 같게 유지. 빌드 결과물을 nginx로 서빙</td></tr>
+<tr><td>답변 흐름</td><td>if문 + 같은 흐름이 두 곳에 있음</td><td><b>LangGraph</b></td><td>흐름을 그래프 하나로 합치기</td></tr>
+<tr><td>배포</td><td>Railway · Vercel</td><td><b>AWS EC2 + Docker</b></td><td>직접 서버 구성, nginx, HTTPS, CI/CD</td></tr>
+<tr><td>문서</td><td>외부 미술 자료만 있음</td><td>내부 + 외부 문서</td><td>(선택) 사용자 PDF 업로드 질의응답</td></tr>
+</table>
+
+<h3>① 기획 · 요구사항 정의서</h3>
+<ul>
+<li><b>범위 정하기</b>: 3차 기능(소셜, 일기, MCP 등)을 다 옮기면 일이 너무 많아요. 핵심인 <b>도슨트 채팅, 출처 표시, 작품 목록·상세, 로그인, 컬렉션</b>을 먼저 하고, 나머지는 여유가 있으면 해요.</li>
+<li>기능·비기능 요구사항에 ID(FR-01, NFR-01 …)를 붙이고 우선순위를 매겨요. 3차 README의 기능 표와 <code>PLAN.md</code>에서 시작하면 돼요.</li>
+<li>4차에서 새로 넣는 것(LangGraph, 하이브리드 검색, AWS 배포)은 비기능 요구사항(성능·정확도·가용성)으로 정리해요.</li>
+</ul>
+
+<h3>② 화면설계서</h3>
+<ul>
+<li>프론트는 3차 Flutter Web을 그대로 써요. 3차 운영 캡처(<code>docs/readme-2026-10-15/</code>)를 기반으로 정리하면 돼요.</li>
+<li>화면마다 화면 ID, 구성 요소, 동작, 연결 API를 적어요.</li>
+<li>새 화면이 생기면(예: 문서 업로드) 그 화면만 새로 그려요.</li>
+</ul>
+
+<h3>③ Django 백엔드</h3>
+<ul>
+<li>기능별로 앱을 나눠요: <code>accounts</code>, <code>catalog</code>, <code>chat</code>, <code>library</code>, <code>documents</code>, <code>llm</code></li>
+<li><b>Django Ninja</b>를 쓰면 FastAPI와 문법이 거의 같아서 <code>api/routes/</code>를 쉽게 옮길 수 있어요. 다른 기수도 이 방식을 썼어요.</li>
+<li>SQLAlchemy 모델(<code>models/</code>)을 Django ORM으로, Alembic을 Django migration으로 바꿔요. 지금 TiDB 테이블을 그대로 쓰려면 <code>inspectdb</code>로 모델을 뽑아 오면 빨라요.</li>
+<li><code>rag/</code>, <code>docent/</code>, <code>clients/</code>, <code>services/</code>는 거의 그대로 옮겨요. DB 접근만 Django ORM에 맞게 고쳐요.</li>
+<li>스트리밍 답변(SSE)은 <code>StreamingHttpResponse</code>로 유지해요. 이벤트 모양(<code>token</code>, <code>replace</code>, <code>done</code>)은 3차와 같게 둬요.</li>
+<li>Django Admin으로 작품·문서를 관리하면 관리자 화면을 따로 만들지 않아도 돼요.</li>
+</ul>
+
+<h3>④ 프론트 (Flutter Web)</h3>
+<ul>
+<li>3차에서 실제로 배포한 Flutter Web(<code>lib/</code>, <code>web/</code>, <code>assets/</code>, <code>pubspec.yaml</code>)을 그대로 가져와요. 3차의 React(<code>src/</code>)는 API 연결이 없는 초기 목업이라 쓰지 않아요.</li>
+<li>바꿀 것은 빌드할 때 넣는 <code>API_BASE_URL</code> 정도예요(<code>scripts/write-build-defines.mjs</code>). <code>flutter build web</code> 결과물(<code>build/web</code>)을 nginx가 서빙해요.</li>
+<li>Flutter가 Firebase 로그인을 쓰니까, Django에서도 Firebase ID 토큰 검증(<code>firebase-admin</code>)을 3차처럼 유지해요.</li>
+</ul>
+
+<h3>⑤ 클라우드 인프라 · 배포 · 시스템 구성도</h3>
+<ul>
+<li><b>AWS EC2 + Docker Compose</b>로 구성해요: nginx(HTTPS, 정적 파일) → Gunicorn/Uvicorn(Django) → TiDB · Chroma Cloud · OpenAI</li>
+<li>GitHub Actions로 CI/CD를 만들어요: push하면 테스트(CI), main에 merge하면 EC2에 자동 배포(CD)</li>
+<li>비밀값은 <code>.env.example</code>만 커밋하고, 실제 값은 GitHub Secrets와 EC2 환경변수에 넣어요.</li>
+<li>시스템 구성도는 3차 README의 mermaid 구조도를 4차 구성(AWS, LangGraph)에 맞게 다시 그려요.</li>
+</ul>
+
+<h3>⑥ 테스트 계획 및 결과 보고서</h3>
+<ul>
+<li>3차 평가 자료를 그대로 써요: <code>tests/questions/*.json</code>(45문항), <code>scripts/eval_*.py</code>, RAGAS 기반 LLM Judge</li>
+<li>추가할 것: Django API 테스트, 배포 환경 통합 테스트, 화면 시나리오 체크리스트</li>
+<li>보고서는 <b>3차 기준 → 4차 개선 후</b> 비교표로 만들어요. 이 문서의 4장 내용이 그대로 들어가요.</li>
+</ul>
+
+<!-- ================================================================ -->
+<h2>2. 확장 — LangGraph · 고도화</h2>
+
+<h3>지금 상태</h3>
+<p>LangChain은 이미 쓰고 있어요(<code>ChatOpenAI</code>, <code>OpenAIEmbeddings</code>, <code>JsonOutputParser</code>, <code>Document</code>). LangGraph는 안 쓰고 있어요.<br>
+<b>LangChain은 부품이고, LangGraph는 부품을 어떤 순서로 실행할지 정하는 설계도예요.</b></p>
+
+<p>지금은 <code>docent/service.py</code>의 <code>answer()</code> 안에 if문으로 흐름이 짜여 있어요.</p>
+<pre>질문 → 분류 → 거절? → 바로 답변? → 범위 밖? → 추천? → 검색 → 자료 없음? → LLM 생성 → 검증 → 답변</pre>
+
+<p><span class="tag pdf">팀원 PDF</span> 게다가 <b>같은 흐름이 두 곳에 따로 구현돼 있어요.</b> <code>docent_service.answer</code>(일반 답변)와 <code>docent_stream.answer_events</code>(스트리밍)가 분류·범위 판정·검색·생성·검증을 각각 해요. 스트리밍 쪽은 RAG가 아닌 질문을 처리할 때 <code>answer()</code>를 다시 불러서 분류를 한 번 더 해요. 그래서 한쪽만 고치면 두 경로의 동작이 달라져요.<br>
+→ <b>LangGraph로 그래프 하나를 만들고, 일반 답변과 스트리밍이 같은 그래프를 쓰게 하면</b> 이 문제가 구조적으로 해결돼요. LangGraph를 써야 하는 가장 분명한 이유예요.</p>
+
+<h3>① 기본: 지금 흐름을 그래프로 옮기기</h3>
+<pre>[분류] ─거절──→ [거절 답변] ─→ 끝
+   ├──바로 답변→ [카탈로그 답변] ─→ 끝
+   ├──추천────→ [추천] ─→ 끝
+   └──RAG────→ [검색] → [생성] → [검증] ─→ 끝</pre>
+<ul>
+<li>지금 있는 <code>classify</code>, <code>retrieve</code>, <code>generate</code>, <code>validate_response</code>를 노드로 감싸기만 하면 돼요. 새로 짜는 로직은 거의 없어요.</li>
+<li>흐름도 그림이 자동으로 나와서 시스템 구성도와 발표 자료에 바로 쓸 수 있어요.</li>
+<li>스트리밍은 LangGraph의 <code>stream_mode="messages"</code>로 생성 노드의 토큰을 받아요. 그래서 흐름을 한 번만 짜면 돼요.</li>
+</ul>
+
+<h3>② 고도화: "근거가 부족하면 다시 찾기" 루프</h3>
+<pre>[검색] → [근거 판정] ─부족→ [질문 다시 쓰기(LLM)] → [검색]   (최대 2회)
+                     ├─충분→ [생성]
+                     └─2회 후에도 부족→ [거절(NO_EVIDENCE)]  ← LLM 호출 없이</pre>
+<ul>
+<li><span class="tag pdf">팀원 PDF</span> 지금 후속 질문 처리는 "그 사람", "아까" 같은 말을 정규식으로 찾아서 직전 질문을 앞에 붙이는 방식이에요. 이걸 <b>LLM으로 질문을 다시 쓰는 노드</b>로 바꿔요.</li>
+<li><span class="tag pdf">팀원 PDF</span> <b>관련도 기준선</b>: 지금은 거리가 아무리 멀어도 검색 결과가 항상 LLM에 들어가요. 근거 판정 노드에서 점수가 기준 미만이면 LLM을 부르지 않고 바로 거절해요. 기준값은 기존 평가 세트에서 정답이 있는 질문과 거절해야 하는 질문의 점수 분포를 비교해서 정해요.</li>
+</ul>
+
+<h3>③ 확장: 대화 기억 (checkpointer)</h3>
+<ul>
+<li>LangGraph checkpointer로 이전 대화 맥락을 이어받아요. 지금 DB에 저장하는 대화 기록과 연결해요.</li>
+<li>지금은 "최근 6턴 × 600자"처럼 글자 수로 자르는데, 이걸 토큰 기준으로 바꾸는 작업과 같이 하면 좋아요(3장 참고).</li>
+</ul>
+
+<h3>④ 그 밖의 확장 (선택)</h3>
+<table>
+<tr><th>기능</th><th>내용</th><th>효과</th></tr>
+<tr><td><b>내부 문서 업로드</b></td><td>사용자가 PDF(전시 도록, 감상 노트 등)를 올리면 텍스트 추출 → 청킹 → 임베딩 → 그 문서로도 질문하기</td><td>주제 "<b>내외부 문서</b> 기반 질의응답"과 정확히 맞아요</td></tr>
+<tr><td>LangSmith 추적</td><td>노드별 걸린 시간과 입출력 기록</td><td>테스트 보고서와 디버깅에 좋아요</td></tr>
+<tr><td>Semantic Cache</td><td>비슷한 질문은 저장된 답을 돌려주기</td><td>응답 속도(P95 5.9초) 개선</td></tr>
+<tr><td>DB 백업</td><td>S3 자동 백업</td><td>운영 안정성</td></tr>
+</table>
+
+<!-- ================================================================ -->
+<h2>3. 보완할 점</h2>
+
+<h3>인프라 · 구조</h3>
+<table>
+<tr><th>영역</th><th>지금 상태</th><th>보완 방향</th><th>우선순위</th></tr>
+<tr><td>배포</td><td>Railway + Vercel</td><td>AWS EC2 + Docker Compose + nginx + HTTPS</td><td>⭐⭐⭐ 필수</td></tr>
+<tr><td>CI/CD</td><td>없음</td><td>GitHub Actions: 자동 테스트 후 자동 배포</td><td>⭐⭐⭐</td></tr>
+<tr><td>백엔드</td><td>FastAPI</td><td>Django + Django Ninja</td><td>⭐⭐⭐ 필수</td></tr>
+<tr><td>파이프라인 중복 <span class="tag pdf">팀원 PDF</span></td><td>일반 답변과 스트리밍에 흐름이 따로 있음</td><td>LangGraph 그래프 하나로 통합 (2장 ①)</td><td>⭐⭐⭐</td></tr>
+<tr><td>범위 밖 질문을 세 번 거름 <span class="tag pdf">팀원 PDF</span></td><td>정규식 분류기, LLM 범위 판정, 시스템 프롬프트 거절 규칙이 같은 일을 겹쳐서 해요. 그래서 잘못 걸렀을 때 어디를 고쳐야 할지 알기 어려워요</td><td>범위 판정을 그래프의 한 노드로 모으고, 어느 단계에서 걸렀는지 응답 로그에 남기기</td><td>⭐⭐</td></tr>
+<tr><td>규칙 하드코딩 <span class="tag pdf">팀원 PDF</span></td><td><code>OUT_OF_SCOPE_ARTISTS</code>, 비교 키워드, 후속 질문 정규식이 코드 안에 있음. 별칭은 <code>lru_cache</code>라서 데이터가 바뀌면 서버를 재시작해야 함</td><td>규칙을 <code>data/</code>의 설정 파일이나 DB로 옮기기(Django Admin에서 수정 가능). 캐시는 데이터 갱신 시점에 비우기</td><td>⭐⭐</td></tr>
+<tr><td>관측·모니터링</td><td>없음</td><td>LangSmith, 헬스체크</td><td>⭐⭐</td></tr>
+</table>
+
+<h3>검색 품질 <span class="tag pdf">팀원 PDF</span></h3>
+<table>
+<tr><th>문제</th><th>보완 방향</th></tr>
+<tr><td><b>벡터 검색만 씀</b>: 키워드 검색(BM25)이나 리랭커가 없어서 고유명사, 연도, 작품명처럼 정확한 단어를 맞춰야 하는 질문에 약해요</td><td>하이브리드 검색 (아래 「하이브리드 RAG 설계」)</td></tr>
+<tr><td><b>관련도 기준선 없음</b>: 거리가 멀어도 항상 LLM에 넣고, 거절 판단은 전부 LLM이 해요</td><td>점수 기준 미만이면 LLM 호출 없이 거절 (2장 ②)</td></tr>
+<tr><td><b>질문 다시 쓰기가 단순함</b>: 정규식으로 직전 질문을 앞에 붙이는 방식</td><td>LLM으로 질문 다시 쓰기 (2장 ②)</td></tr>
+<tr><td><b>Chroma 우회 비용이 큼</b>: 필터를 건 근사 검색에서 청크가 빠지는 문제를 피하려고 <code>get()</code>으로 벡터를 전부 받아 numpy로 계산해요. 문서가 늘면 요청마다 받는 양도 늘어요</td><td>작품별 청크를 메모리 TTL 캐시에 두기 (아래 설계)</td></tr>
+<tr><td><b>TiDB와 Chroma를 손으로 동기화</b>: <code>sync_chroma</code>를 직접 돌려야 맞춰지고, 어긋났는지 알 방법이 없어요</td><td>문서 수·청크 ID를 비교하는 정합성 검사 스크립트를 만들고, CI나 헬스체크에서 돌리기</td></tr>
+</table>
+
+<h3>생성 · 검증 <span class="tag pdf">팀원 PDF</span></h3>
+<table>
+<tr><th>문제</th><th>보완 방향</th></tr>
+<tr><td><b>출처를 문서 단위로만 확인</b>: <code>used_document_ids</code>가 실제 검색된 문서인지만 보고, 답변의 각 주장이 근거와 맞는지는 확인하지 않아요</td><td>(선택) 검증 노드에서 문장별로 근거와 맞는지 LLM Judge로 확인. 비용이 드니까 평가 단계에서 먼저 써 보기</td></tr>
+<tr><td><b>스트리밍에서 검증 전 문장이 먼저 보임</b>: 검증에 실패하면 <code>replace</code> 이벤트로 거절 문구로 바뀌어서, 근거 없는 문장이 잠깐 보였다가 화면이 깜빡여요</td><td>2장 ②의 관련도 기준선으로 실패할 질문은 생성 전에 걸러서 <code>replace</code>가 생기는 경우 자체를 줄이기. 필요하면 첫 문장만 버퍼링</td></tr>
+<tr><td><b>컨텍스트를 글자 수로만 자름</b>: 문서 최대 40개, 문서당 5000자, 이력 6턴 × 600자</td><td><code>tiktoken</code>으로 토큰 예산을 정해서 자르기</td></tr>
+</table>
+
+<h3>하이브리드 RAG 설계 <span class="tag pdf">팀원 PDF</span></h3>
+<p>팀원이 제안한 A안이에요. 지금 데이터 규모에 가장 단순하고 빨라요.</p>
+<ol>
+<li><b>작품별 청크를 메모리 캐시에 두기</b>: 작품별로 범위 안 청크의 본문과 벡터를 한 번 불러와 TTL 캐시에 둬요(키: <code>artwork_id</code>). <code>sync_chroma</code>나 <code>build_chunks</code>를 돌리면 캐시를 비워요.<br>
+→ Chroma <code>query()</code>/<code>get()</code> 왕복이 0회가 되고, 필터 검색에서 청크가 빠지는 문제가 사라져요. 남는 외부 호출은 질문 임베딩 1회뿐이에요.</li>
+<li><b>한국어 BM25</b>: <code>kiwipiepy</code> 형태소 분석으로 명사·고유명사·숫자만 색인하고, <code>rank_bm25</code>를 써요. 작가 별칭(<code>artist_aliases.jsonl</code>)을 사용자 사전에 넣어서 "렘브란트 판 레인" 같은 이름이 쪼개지지 않게 해요.<br>
+→ 연도(1642), 작품명(『야경』), 기법명(테네브리즘) 같은 질문이 좋아져요.</li>
+<li><b>RRF로 합치기</b>: <code>점수 = 1/(60+벡터순위) + 1/(60+BM25순위)</code>. 두 점수의 단위를 맞출 필요가 없어서 튜닝이 쉬워요. 지금의 자리 보장 규칙(<code>MAX_PER_DOC</code>, <code>OWN_K</code>, 연표·보정문 고정)은 RRF 뒤에 그대로 적용해요.</li>
+<li><b>리랭커는 선택</b>: RRF 상위 15~20개만 리랭크해서 5~8개로 줄여요. Cohere <code>rerank-multilingual</code>(API, 수백 ms)이나 <code>bge-reranker-v2-m3</code>(직접 호스팅, CPU·메모리 부담 큼) 중에서 골라요. 1~3번을 먼저 적용해서 평가해 보고, 점수가 부족할 때만 추가해요.</li>
+<li><b>관련도 기준선으로 일찍 거절</b>: 최상위 점수가 기준 미만이면 <code>NO_EVIDENCE_MESSAGE</code>로 바로 거절해요.</li>
+<li><b>대안</b>: 문서가 크게 늘면 TiDB 전문 검색(FULLTEXT) + 벡터 검색, 또는 Chroma Cloud sparse 벡터로 옮길 수 있어요. 지금 규모에서는 1번이 더 빠르고 단순해요.</li>
+</ol>
+
+<!-- ================================================================ -->
+<h2>4. 테스트 기준 미달 항목과 해결 방법</h2>
+
+<h3>❌ ① <code>refused</code> 값 정합성 6/8 (75%)</h3>
+<ul>
+<li><b>무슨 문제냐면</b>: 답변 본문에는 "이 자료로는 확인할 수 없어요"라고 쓰고, 거절 여부 값은 <code>refused=false</code>로 보낸 경우예요. 내용이 틀린 게 아니라 표시가 틀린 거예요.</li>
+<li><b>원인</b>: <code>docent/grounding.py</code>에서 LLM이 <code>refused</code> 값을 직접 정하는데, 가끔 본문과 값이 엇갈려요.</li>
+<li><b>해결</b> (쉬운 순서)
+  <ol>
+  <li><b>서버에서 한 번 더 확인</b>: 출처(<code>used_document_ids</code>)가 하나도 없거나 답변에 "확인할 수 없", "자료에 없" 같은 표현이 있으면 서버가 <code>refused=true</code>로 고쳐요. 코드 몇 줄이면 돼요.</li>
+  <li><b>프롬프트 보강</b>: "확인 불가를 설명할 때는 반드시 refused=true" 규칙과 예시를 넣어요.</li>
+  <li>LangGraph의 <b>[검증] 노드</b>에 1번 로직을 넣어요.</li>
+  </ol></li>
+<li>가장 빨리 고칠 수 있어요. 보고서에 "75% → 100%"로 바로 쓸 수 있어요.</li>
+</ul>
+
+<h3>❌ ② 청크 단위 검색 점수 미달</h3>
+<table>
+<tr><th>지표</th><th>3차 결과</th><th>목표</th></tr>
+<tr><td>Recall@5</td><td>0.787</td><td>0.85</td></tr>
+<tr><td>MRR</td><td>0.778</td><td>0.80</td></tr>
+<tr><td>nDCG@5</td><td>0.751</td><td>0.80</td></tr>
+</table>
+<ul>
+<li><b>무슨 문제냐면</b>: 문서 단위로는 100% 찾아요. 그런데 <b>문서 안의 정확한 문단(청크)</b>을 상위 5개에 넣는 건 조금 부족해요. 정답 문단이 6~10위에 있거나 순서가 뒤로 밀려 있어요.</li>
+<li><b>원인</b>: 벡터 검색 하나만 써서 "인물 배치", "명암", 연도, 작품명 같은 특정 단어가 들어간 문단을 놓쳐요. 팀원 PDF에서 짚은 "벡터 검색만 씀" 문제와 같은 원인이에요.</li>
+<li><b>해결</b> (효과 큰 순서)
+  <ol>
+  <li><b>하이브리드 검색</b>: 한국어 BM25 + 벡터를 RRF로 합쳐요(3장 설계 1~3번).</li>
+  <li><b>Rerank</b>: 후보를 15~20개 가져와서 재정렬해요. 순서 점수인 <b>MRR과 nDCG를 올리는 데 가장 효과적</b>이에요.</li>
+  <li><b>질문 다시 쓰기</b>: LangGraph ② 루프예요.</li>
+  <li><b>청킹 조정</b>: 지금은 500자(최대 800자), 150자 미만은 합쳐요. 크기나 겹침을 바꿔 볼 수 있지만, 효과가 불확실하고 다시 임베딩해야 해서 마지막에 해요.</li>
+  </ol></li>
+<li><b>보고서 형식</b>: 단계별 비교표로 만들어요. 평가 스크립트(<code>scripts/eval_retrieval.py</code>)와 문항(<code>tests/questions/chunk-ground-truth.json</code>)이 있어서 그대로 다시 돌리면 돼요.
+<table>
+<tr><th>단계</th><th>Recall@5</th><th>MRR</th><th>nDCG@5</th></tr>
+<tr><td>3차 (벡터만)</td><td>0.787</td><td>0.778</td><td>0.751</td></tr>
+<tr><td>+ BM25 하이브리드 (RRF)</td><td></td><td></td><td></td></tr>
+<tr><td>+ Rerank</td><td></td><td></td><td></td></tr>
+<tr><td>+ 질문 다시 쓰기</td><td></td><td></td><td></td></tr>
+</table></li>
+</ul>
+
+<h3>⚠️ 그 밖에 남은 것 (3차 README의 후속 과제)</h3>
+<ul>
+<li>출처 링크 1개 수동 확인 → 직접 열어 보고 교체</li>
+<li>실제 두 계정으로 저장·삭제·권한 격리 검증 → 테스트 계정 2개로 시나리오 테스트</li>
+<li>브라우저에서 첫 글자가 뜨기까지 시간 측정 → 배포 후 측정해서 보고서에 넣기</li>
+<li>4차 추가: 관련도 기준선을 넣은 뒤 <b>거절해야 할 질문은 거절하고, 답해야 할 질문은 거절하지 않는지</b> 같이 측정 (거절을 너무 많이 하지 않는지)</li>
+</ul>
+
+<!-- ================================================================ -->
+<h2>5. 진행 순서와 폴더 구조</h2>
+<pre>1주차  요구사항·범위 확정 · Django 뼈대 · 3차 코드 이식 · refused 수정
+2주차  LangGraph 그래프(①) · 하이브리드 검색 · 평가 다시 돌리기
+3주차  LangGraph 루프(②) · Rerank · Docker/AWS 배포 · CI/CD
+4주차  (선택) 내부 문서 업로드 · 테스트 보고서 · 시스템 구성도 · 발표</pre>
+
+<pre>SKN35-4th-1Team/
+├── backend/                 # Django
+│   ├── config/              # settings, urls, api (Django Ninja)
+│   ├── accounts/            # 회원·로그인
+│   ├── catalog/             # 작가·작품·사조
+│   ├── chat/                # 도슨트 채팅 API
+│   ├── library/             # 좋아요·컬렉션
+│   ├── documents/           # 외부 자료 + 내부 문서 업로드
+│   ├── llm/                 # 3차 rag/ + docent/ + clients/ 이식 → LangGraph
+│   ├── scripts/             # 전처리·임베딩·평가 (3차 복사)
+│   ├── tests/               # 평가 문항·단위 테스트 (3차 복사)
+│   └── manage.py
+├── frontend/                # Flutter Web (3차 복사)
+├── data/                    # 3차 복사
+├── infra/                   # Dockerfile, docker-compose, nginx
+├── .github/workflows/       # CI/CD
+└── docs/                    # 4차 산출물</pre>
+
+<p style="color:#666;font-size:9pt;margin-top:20px">3차 레포: SKN35-3rd-1Team · 팀원 자료: 「(3차 단프-1팀) 아키텍처 구조 → 보완해야 할 점」</p>
+</body>
+</html>
