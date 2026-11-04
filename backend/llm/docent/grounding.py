@@ -180,7 +180,30 @@ def context(artwork: object, body: ChatRequest, docs: Sequence[Document]) -> dic
     }
 
 
-def validate_response(raw: dict, docs: Sequence[Document]) -> ChatResponse:
+# 질문이 정확한 답이나 단정을 요구했는데 답변 첫 문장이 "자료로 확인할 수 없다"면
+# 핵심 요청을 수행하지 못한 것이므로 refused=true 로 바로잡는다.
+# ponytail: 표현 목록 기반 규칙. 평가 답변 256건에서 오탐 0건이지만, 새 표현이 늘면 LLM 판정으로 바꾼다.
+_EXACT_REQUEST = re.compile(r"정확히|단정")
+_NO_EVIDENCE_STATEMENT = re.compile(
+    r"확인할 수 없|확인하기 어렵|알 수 없|알려드리기 어렵|언급되어 있지 않|언급되지 않"
+    r"|자료에 없|단정하기는? 어렵|남아 있지 않|전해지지 않"
+)
+_HEDGE = re.compile(r"지만|으나|다만")
+
+
+def unanswered_exact_request(question: str, answer: str) -> str | None:
+    """Return the model's own 'cannot confirm' sentence when the core request went unanswered."""
+    first = re.split(r"(?<=[.!?])\s+", answer.strip(), maxsplit=1)[0]
+    if (
+        _EXACT_REQUEST.search(question)
+        and _NO_EVIDENCE_STATEMENT.search(first)
+        and not _HEDGE.search(first)
+    ):
+        return first
+    return None
+
+
+def validate_response(raw: dict, docs: Sequence[Document], question: str = "") -> ChatResponse:
     """Reject malformed model output and assemble public sources from server data."""
     allowed = {doc.metadata["document_id"] for doc in docs}
     draft = parse_grounded_draft(json.dumps(raw, ensure_ascii=False), allowed)
@@ -199,6 +222,8 @@ def validate_response(raw: dict, docs: Sequence[Document]) -> ChatResponse:
             refused=True,
             sources=[],
         )
+    if (reason := unanswered_exact_request(question, draft.answer)) is not None:
+        return ChatResponse(answer=reason, refused=True, sources=[])
     used = set(draft.used_document_ids)
     sources = {}
     for doc in docs:
