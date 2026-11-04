@@ -15,38 +15,33 @@ The offer is only a suggestion: nothing is saved until the member confirms it
 through the regular collection REST calls.
 """
 
-from sqlalchemy import select
-
-from app.models import ChatMessage, ChatRole, Collection, CollectionItem
-from app.repositories import chat_repository
-from app.schemas.chat import ChatRequest, ChatResponse
-from app.schemas.mypage import (
+from catalog import catalog_service
+from chat import chat_repository
+from chat.models import ChatRole
+from chat.schemas import ChatRequest, ChatResponse
+from library.models import Collection, CollectionItem
+from library.mypage_schemas import (
     CollectionChoice,
     CollectionSuggestion,
 )
-from app.services import catalog_service
 from llm.docent.grounding import is_non_engagement_question
 
 MIN_QUESTIONS = 3  # the third question about one artwork counts as interest
 MAX_CHOICES = 6
 
 
-def first_interest(db, user_id: int, artwork_id: int) -> bool:
+def first_interest(user_id: int, artwork_id: int) -> bool:
     """Offer only on the first answered, substantive question from the third on.
 
     The saved conversation is authoritative: the client history can be missing
     or edited, and the current exchange has already been persisted by the route.
     """
     session_id = chat_repository.get_session_id(
-        db, user_id=user_id, artwork_id=artwork_id
+        user_id=user_id, artwork_id=artwork_id
     )
     if session_id is None:
         return False
-    messages = db.scalars(
-        select(ChatMessage)
-        .where(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.id)
-    ).all()
+    messages = chat_repository.list_messages(session_id=session_id)
     if not messages:
         return False
     questions = 0
@@ -67,28 +62,25 @@ def first_interest(db, user_id: int, artwork_id: int) -> bool:
 
 
 def suggest(
-    db, user_id: int | None, artwork_id: int, body: ChatRequest, response: ChatResponse
+    user_id: int | None, artwork_id: int, body: ChatRequest, response: ChatResponse
 ) -> CollectionSuggestion | None:
     if (
         user_id is None
         or response.refused
         or is_non_engagement_question(body.question)
-        or not first_interest(db, user_id, artwork_id)
+        or not first_interest(user_id, artwork_id)
     ):
         return None
-    art = catalog_service.get_artwork(db, artwork_id)
-    collections = db.execute(
-        select(Collection.id, Collection.name)
-        .where(Collection.user_id == user_id)
-        .order_by(Collection.updated_at.desc(), Collection.id.desc())
-    ).all()
-    ids = [cid for cid, _ in collections]
-    already = ids and db.scalar(
-        select(CollectionItem.artwork_id).where(
-            CollectionItem.collection_id.in_(ids),
-            CollectionItem.artwork_id == artwork_id,
-        )
+    art = catalog_service.get_artwork(artwork_id)
+    collections = list(
+        Collection.objects.filter(user_id=user_id)
+        .order_by("-updated_at", "-id")
+        .values_list("id", "name")
     )
+    ids = [cid for cid, _ in collections]
+    already = CollectionItem.objects.filter(
+        collection_id__in=ids, artwork_id=artwork_id
+    ).exists()
     if already:
         return None
     return CollectionSuggestion(

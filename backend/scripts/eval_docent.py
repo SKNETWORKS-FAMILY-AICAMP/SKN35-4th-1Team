@@ -16,14 +16,12 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import select
-
-from app.core.config import get_settings
+from catalog.models import Artwork
+from chat.schemas import ChatRequest
+from config.app_settings import get_settings
 from llm.docent import graph as docent_service
-from app.models import Artwork
 from llm.rag.prompts import PROMPT_VERSION
 from llm.rag.retriever import COMPARISON_K, OWN_K, TOP_K
-from app.schemas.chat import ChatRequest
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT.parent
@@ -44,11 +42,9 @@ def _topics(keys: set[str]) -> set[str]:
     return {key.removesuffix(".en") for key in keys}
 
 
-def evaluate(session, cases: list[dict]) -> list[dict]:
+def evaluate(cases: list[dict]) -> list[dict]:
     slugs = {case["artwork_slug"] for case in cases}
-    artwork_ids = dict(
-        session.execute(select(Artwork.slug, Artwork.id).where(Artwork.slug.in_(slugs))).all()
-    )
+    artwork_ids = dict(Artwork.objects.filter(slug__in=slugs).values_list("slug", "id"))
     rows = []
     for case in cases:
         row = {
@@ -92,7 +88,7 @@ def evaluate(session, cases: list[dict]) -> list[dict]:
         docent_service.generate = capture_generate
         try:
             response = docent_service.answer(
-                session, artwork_id, ChatRequest.model_validate(case)
+                artwork_id, ChatRequest.model_validate(case)
             )
             row["response"] = response.model_dump(mode="json")
             expected_refused = row["expected"]["refused"]
@@ -128,7 +124,6 @@ def evaluate(session, cases: list[dict]) -> list[dict]:
             }
         except Exception as exc:  # noqa: BLE001 - retain the remaining evaluation cases
             row["execution_error"] = type(exc).__name__
-            session.rollback()
         finally:
             docent_service.retrieve = original_retrieve
             docent_service.generate = original_generate
@@ -144,17 +139,14 @@ def main(argv: list[str] | None = None) -> int:
     if settings.openai_api_key is None:
         parser.error("OPENAI_API_KEY가 없어 실제 도슨트 평가를 실행할 수 없습니다.")
 
-    from app.db.session import SessionLocal
-
     cases = _cases(GENERAL) + _cases(ACCURACY)
-    with SessionLocal() as session:
-        rows = evaluate(session, cases)
+    rows = evaluate(cases)
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "cases.jsonl").write_text(
         "".join(json.dumps(row, ensure_ascii=False, default=str) + "\n" for row in rows),
         encoding="utf-8",
     )
-    instruction = docent_service.instructions(None, None)
+    instruction = docent_service.instructions(None)
     (args.out / "system-prompt.txt").write_text(instruction, encoding="utf-8")
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], cwd=PROJECT, capture_output=True, text=True, check=False

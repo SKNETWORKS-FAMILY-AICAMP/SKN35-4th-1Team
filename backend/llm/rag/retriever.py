@@ -34,12 +34,11 @@ from collections.abc import Callable
 import numpy as np
 from chromadb.api.models.Collection import Collection
 from langchain_core.documents import Document
-from sqlalchemy.orm import Session
 
 from app.repositories import document_repository as repo
+from documents import document_repository as repo
 from llm.clients import chroma_client, embedding_client
 from llm.rag.chunking import annotation_section
-from llm.rag.hybrid import hybrid_rank
 
 TOP_K = 5
 OWN_K = 3  # 고른 작품 자신의 해설에 보장하는 자리
@@ -50,7 +49,6 @@ COMPARISON_HINTS = ("비교", "차이", "달라", "다른 점", "다르게", "�
 
 
 def retrieve(
-    session: Session,
     artwork_id: int,
     question: str,
     k: int = TOP_K,
@@ -58,7 +56,7 @@ def retrieve(
     collection: Collection | None = None,
     embed: Callable[[str], list[float]] | None = None,
 ) -> list[Document]:
-    scope = repo.scope_document_ids(session, artwork_id)
+    scope = repo.scope_document_ids(artwork_id)
     if not scope:  # 없는 작품. Chroma 의 $in 에 빈 목록을 넣으면 오류가 나므로 여기서 끝낸다
         return []
     vector = (embed or embedding_client.embed_query)(question)
@@ -82,11 +80,11 @@ def retrieve(
     )
 
     have = {h["id"] for h in ranked}
-    extra = [str(i) for i in repo.pinned_chunk_ids(session, artwork_id, scope) if str(i) not in have]
+    extra = [str(i) for i in repo.pinned_chunk_ids(artwork_id, scope) if str(i) not in have]
     pinned = _fetch_with_distance(collection, vector, ids=extra) if extra else []
 
     hits = [(h, False) for h in ranked] + [(h, True) for h in pinned]
-    sources = repo.document_sources(session, {h["metadata"]["document_id"] for h, _ in hits})
+    sources = repo.document_sources({h["metadata"]["document_id"] for h, _ in hits})
     return [_document(h, sources[h["metadata"]["document_id"]], is_pinned) for h, is_pinned in hits]
 
 

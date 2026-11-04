@@ -14,11 +14,9 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from django.db import transaction
 
-from app.db.session import SessionLocal
-from app.models import Artist, ArtMovement, Artwork
+from catalog.models import Artist, ArtMovement, Artwork
 from scripts.preprocess import load_processed
 
 MOVEMENT_FIELDS = ("name", "name_en", "description")
@@ -29,10 +27,10 @@ ARTWORK_FIELDS = (
 )
 
 
-def upsert(session: Session, model: type, rows: list[dict], fields: tuple[str, ...],
+def upsert(model: type, rows: list[dict], fields: tuple[str, ...],
            resolve: dict[str, callable] | None = None) -> tuple[dict[str, int], Counter, int]:
     """slug 기준 upsert. 돌려주는 값: (slug → id, 추가/갱신/유지 개수, processed 에 없는 DB 행 수)."""
-    existing = {obj.slug: obj for obj in session.scalars(select(model))}
+    existing = {obj.slug: obj for obj in model.objects.all()}
     stats: Counter = Counter()
     for row in rows:
         values = {f: row.get(f) for f in fields}
@@ -40,26 +38,26 @@ def upsert(session: Session, model: type, rows: list[dict], fields: tuple[str, .
             values[column] = fn(row)
         obj = existing.get(row["slug"])
         if obj is None:
-            session.add(model(slug=row["slug"], **values))
+            model.objects.create(slug=row["slug"], **values)
             stats["추가"] += 1
         elif any(getattr(obj, k) != v for k, v in values.items()):
             for k, v in values.items():
                 setattr(obj, k, v)
+            obj.save()
             stats["갱신"] += 1
         else:
             stats["유지"] += 1
-    session.flush()
-    ids = {slug: id_ for slug, id_ in session.execute(select(model.slug, model.id))}
+    ids = dict(model.objects.values_list("slug", "id"))
     orphans = len(set(ids) - {r["slug"] for r in rows})
     return ids, stats, orphans
 
 
-def load(session: Session) -> dict[str, tuple[Counter, int]]:
+def load() -> dict[str, tuple[Counter, int]]:
     movements = load_processed("movements.jsonl")
     artists = load_processed("artists.jsonl")
     artworks = load_processed("artworks.jsonl")
 
-    movement_ids, m_stats, m_orphans = upsert(session, ArtMovement, movements, MOVEMENT_FIELDS)
+    movement_ids, m_stats, m_orphans = upsert(ArtMovement, movements, MOVEMENT_FIELDS)
 
     def movement_id(row: dict) -> int | None:
         slug = row.get("movement_slug")
@@ -68,7 +66,7 @@ def load(session: Session) -> dict[str, tuple[Counter, int]]:
         return movement_ids.get(slug) if slug else None
 
     artist_ids, a_stats, a_orphans = upsert(
-        session, Artist, artists, ARTIST_FIELDS, {"movement_id": movement_id})
+        Artist, artists, ARTIST_FIELDS, {"movement_id": movement_id})
 
     def artist_id(row: dict) -> int:
         if row["artist_slug"] not in artist_ids:
@@ -76,7 +74,7 @@ def load(session: Session) -> dict[str, tuple[Counter, int]]:
         return artist_ids[row["artist_slug"]]
 
     _, w_stats, w_orphans = upsert(
-        session, Artwork, artworks, ARTWORK_FIELDS, {"artist_id": artist_id, "movement_id": movement_id})
+        Artwork, artworks, ARTWORK_FIELDS, {"artist_id": artist_id, "movement_id": movement_id})
     return {"사조": (m_stats, m_orphans), "작가": (a_stats, a_orphans), "작품": (w_stats, w_orphans)}
 
 
@@ -85,12 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="바뀔 내용만 세고 커밋하지 않음")
     args = parser.parse_args(argv)
 
-    with SessionLocal() as session:
-        result = load(session)
-        if args.dry_run:
-            session.rollback()
-        else:
-            session.commit()
+    with transaction.atomic():
+        result = load()
+        transaction.set_rollback(args.dry_run)
 
     for name, (stats, orphans) in result.items():
         note = f" · processed 에 없는 DB 행 {orphans}" if orphans else ""

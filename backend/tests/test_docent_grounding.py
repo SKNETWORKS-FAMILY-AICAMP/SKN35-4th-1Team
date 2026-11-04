@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.documents import Document
 
-from app.schemas.chat import ChatRequest, ChatTurn
+from chat.schemas import ChatRequest, ChatTurn
 from llm.docent.grounding import (
     NO_EVIDENCE_MESSAGE,
     context,

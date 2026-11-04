@@ -22,7 +22,7 @@ from urllib.parse import unquote, urlsplit
 
 import httpx
 
-from app.core import timeutil
+from config import timeutil
 from scripts.check_images import USER_AGENT
 from scripts.preprocess import OUT, ROOT, strip_query
 

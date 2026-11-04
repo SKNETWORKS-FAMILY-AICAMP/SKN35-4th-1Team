@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.chat import ChatRequest, ChatResponse, Source
+from chat.schemas import ChatRequest, ChatResponse, Source
 from llm.rag.prompts import STYLE_RULES, build_system_prompt, parse_grounded_draft
 
 NO_EVIDENCE_MESSAGE = (

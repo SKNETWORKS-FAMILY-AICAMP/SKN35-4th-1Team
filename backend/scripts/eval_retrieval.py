@@ -17,24 +17,22 @@ import argparse
 import json
 from pathlib import Path
 
-from sqlalchemy import select
-
+from catalog.models import Artwork
+from chat.schemas import ChatRequest
 from llm.docent.grounding import retrieval_question
-from app.models import Artwork
 from llm.rag.retriever import TOP_K, retrieve
-from app.schemas.chat import ChatRequest
 
 QUESTIONS = Path(__file__).resolve().parents[1] / "tests" / "questions" / "rag-eval.json"
 
 
-def evaluate(session, cases: list[dict], k: int = TOP_K) -> list[dict]:
+def evaluate(cases: list[dict], k: int = TOP_K) -> list[dict]:
     slugs = {c["artwork_slug"] for c in cases}
-    ids = dict(session.execute(select(Artwork.slug, Artwork.id).where(Artwork.slug.in_(slugs))).all())
+    ids = dict(Artwork.objects.filter(slug__in=slugs).values_list("slug", "id"))
     rows = []
     for case in cases:
         expected = case["expected"]
         query = retrieval_question(ChatRequest.model_validate(case))
-        docs = retrieve(session, ids[case["artwork_slug"]], query, k)
+        docs = retrieve(ids[case["artwork_slug"]], query, k)
         ranked = [d.metadata for d in docs if not d.metadata["pinned"]]
         found = {d.metadata["doc_key"]: ("고정" if d.metadata["pinned"] else "순위") for d in reversed(docs)}
         targets = expected.get("target_doc_keys") or []
@@ -81,12 +79,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="질문별 결과를 JSON 으로 저장")
     args = parser.parse_args(argv)
 
-    # import 할 때 DB 엔진을 만들므로 여기서 가져옴
-    from app.db.session import SessionLocal
-
     cases = json.loads(args.questions.read_text(encoding="utf-8"))["cases"]
-    with SessionLocal() as session:
-        rows = evaluate(session, cases, args.k)
+    rows = evaluate(cases, args.k)
     for r in rows:
         mark = "-" if not r["targets"] else ("O" if r["all_hit"] else "△" if r["hit"] else "X")
         print(f"{mark} {r['id']:<26} 거리 {r['top_distance']}  {r['matched'] or ''}")

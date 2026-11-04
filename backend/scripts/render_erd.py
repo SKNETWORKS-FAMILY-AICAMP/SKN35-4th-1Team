@@ -1,4 +1,4 @@
-"""Render the SQLAlchemy schema as Mermaid and Graphviz ERD files.
+"""Render the Django schema as Mermaid and Graphviz ERD files.
 
 Run from ``backend/`` with::
 
@@ -12,9 +12,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from sqlalchemy import UniqueConstraint
-
-from app.models import Base
+from django.apps import apps
+from django.db import connection, models
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIRECTORY = REPOSITORY_ROOT / "docs" / "db"
@@ -49,81 +48,66 @@ GROUP_COLORS = {
     "Documents & RAG": "#F2EDF7",
 }
 
-TYPE_NAMES = {
-    "biginteger": "bigint",
-    "smallinteger": "smallint",
-    "integer": "int",
-    "string": "varchar",
-    "text": "text",
-    "mediumtext": "mediumtext",
-    "datetime": "datetime",
-    "date": "date",
-    "boolean": "tinyint",
-    "json": "json",
-    "vectortype": "vector",
-}
+def tables() -> dict:
+    return {
+        model._meta.db_table: model
+        for model in apps.get_models()
+        if not model._meta.managed
+    }
 
 
 def ordered_table_names() -> list[str]:
-    grouped = [table for tables in TABLE_GROUPS.values() for table in tables]
-    remaining = sorted(set(Base.metadata.tables) - set(grouped))
-    return grouped + remaining
+    grouped = [table for names in TABLE_GROUPS.values() for table in names]
+    return grouped + sorted(set(tables()) - set(grouped))
 
 
-def type_name(column) -> str:
-    return TYPE_NAMES.get(type(column.type).__name__.lower(), type(column.type).__name__.lower())
+def columns(model) -> list:
+    # 복합 기본키는 필드로 잡히지만 실제 컬럼이 없다.
+    return [field for field in model._meta.local_fields if field.column]
 
 
-def key_labels(column) -> str:
+def type_name(field) -> str:
+    return (field.db_type(connection) or field.get_internal_type()).split("(")[0].split()[0].lower()
+
+
+def is_primary_key(model, field) -> bool:
+    pk = model._meta.pk
+    return field.primary_key or (
+        isinstance(pk, models.CompositePrimaryKey) and field.attname in pk.field_names
+    )
+
+
+def key_labels(model, field) -> str:
     labels = []
-    if column.primary_key:
+    if is_primary_key(model, field):
         labels.append("PK")
-    if column.foreign_keys:
+    if field.is_relation:
         labels.append("FK")
-    if column.unique:
+    if field.unique and not field.primary_key:
         labels.append("UK")
     return ",".join(labels)
 
 
-def sorted_foreign_keys(table) -> list:
-    """foreign_key_constraints is a set; sort it so re-rendering gives identical files."""
-    return sorted(
-        table.foreign_key_constraints,
-        key=lambda constraint: [column.name for column in constraint.columns],
-    )
-
-
-def is_one_to_one(foreign_key_constraint) -> bool:
-    table = foreign_key_constraint.table
-    columns = {column.name for column in foreign_key_constraint.columns}
-    primary_key = {column.name for column in table.primary_key.columns}
-    if columns == primary_key:
-        return True
-    return any(
-        isinstance(constraint, UniqueConstraint)
-        and columns == {column.name for column in constraint.columns}
-        for constraint in table.constraints
-    )
+def foreign_keys(model) -> list:
+    return sorted((f for f in columns(model) if f.is_relation), key=lambda f: f.column)
 
 
 def mermaid_source() -> str:
     lines = ["erDiagram"]
     for table_name in ordered_table_names():
-        table = Base.metadata.tables[table_name]
-        for constraint in sorted_foreign_keys(table):
-            parent = next(iter(constraint.elements)).column.table.name
-            child_cardinality = "o|" if is_one_to_one(constraint) else "o{"
-            label = ", ".join(column.name for column in constraint.columns)
-            lines.append(f'    {parent} ||--{child_cardinality} {table_name} : "{label}"')
+        for field in foreign_keys(tables()[table_name]):
+            parent = field.related_model._meta.db_table
+            child_cardinality = "o|" if field.one_to_one else "o{"
+            lines.append(f'    {parent} ||--{child_cardinality} {table_name} : "{field.column}"')
 
     lines.append("")
     for table_name in ordered_table_names():
-        table = Base.metadata.tables[table_name]
+        model = tables()[table_name]
         lines.append(f"    {table_name} {{")
-        for column in table.columns:
-            keys = key_labels(column)
+        for field in columns(model):
+            keys = key_labels(model, field)
             key_suffix = f" {keys}" if keys else ""
-            lines.append(f"        {type_name(column)} {column.name}{key_suffix}")
+            lines.append(f"        {type_name(field)} {field.column}{key_suffix}")
         lines.append("    }")
     return "\n".join(lines) + "\n"
 
@@ -140,16 +124,16 @@ def graphviz_source() -> str:
         lines.append(f"  subgraph cluster_{index} {{")
         lines.append(f'    label="{group_name}"; color="{GROUP_COLORS[group_name]}"; penwidth="2"; style="rounded";')
         for table_name in table_names:
-            table = Base.metadata.tables[table_name]
+            model = tables()[table_name]
             rows = []
-            for column in table.columns:
-                keys = html.escape(key_labels(column)) or "&#160;"
-                nullable = "" if column.nullable or column.primary_key else "NOT NULL"
+            for field in columns(model):
+                keys = html.escape(key_labels(model, field)) or "&#160;"
+                nullable = "" if field.null or is_primary_key(model, field) else "NOT NULL"
                 nullable_label = html.escape(nullable) or "&#160;"
                 rows.append(
                     "<TR>"
-                    f'<TD ALIGN="LEFT"><FONT COLOR="#66736B">{html.escape(type_name(column))}</FONT></TD>'
-                    f'<TD PORT="{html.escape(column.name)}" ALIGN="LEFT">{html.escape(column.name)}</TD>'
+                    f'<TD ALIGN="LEFT"><FONT COLOR="#66736B">{html.escape(type_name(field))}</FONT></TD>'
+                    f'<TD PORT="{html.escape(field.column)}" ALIGN="LEFT">{html.escape(field.column)}</TD>'
                     f'<TD ALIGN="CENTER"><B>{keys}</B></TD>'
                     f'<TD ALIGN="LEFT"><FONT COLOR="#8A928D">{nullable_label}</FONT></TD>'
                     "</TR>"
@@ -164,13 +148,11 @@ def graphviz_source() -> str:
         lines.append("  }")
 
     for table_name in ordered_table_names():
-        table = Base.metadata.tables[table_name]
-        for constraint in sorted_foreign_keys(table):
-            element = next(iter(constraint.elements))
-            parent = element.column.table.name
-            parent_column = element.column.name
-            child_column = element.parent.name
-            cardinality = "1 : 0..1" if is_one_to_one(constraint) else "1 : N"
+        for field in foreign_keys(tables()[table_name]):
+            parent = field.related_model._meta.db_table
+            parent_column = field.target_field.column
+            child_column = field.column
+            cardinality = "1 : 0..1" if field.one_to_one else "1 : N"
             lines.append(
                 f'  {parent}:{parent_column} -> {table_name}:{child_column} '
                 f'[label="{cardinality}", arrowhead="vee"];'
@@ -199,7 +181,7 @@ def main() -> None:
             check=True,
         )
 
-    print(f"rendered_tables={len(Base.metadata.tables)}")
+    print(f"rendered_tables={len(tables())}")
     print(f"output={OUTPUT_DIRECTORY / '00_erd.png'}")
 
 

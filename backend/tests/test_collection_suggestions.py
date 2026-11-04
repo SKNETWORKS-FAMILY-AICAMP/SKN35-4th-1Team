@@ -2,17 +2,20 @@
 
 from types import SimpleNamespace
 
+import pytest
+
+from chat.models import ChatRole
+from chat.schemas import ChatRequest, ChatResponse
 from llm.docent import collection_suggestions as offers
-from app.models import ChatRole
-from app.schemas.chat import ChatRequest, ChatResponse
+
+SAVED = []
 
 
-class SavedConversation:
-    def __init__(self, messages):
-        self.messages = messages
-
-    def scalars(self, query):
-        return SimpleNamespace(all=lambda: self.messages)
+@pytest.fixture(autouse=True)
+def saved_messages(monkeypatch):
+    monkeypatch.setattr(
+        offers.chat_repository, "list_messages", lambda session_id: SAVED
+    )
 
 
 def conversation(*exchanges):
@@ -24,7 +27,12 @@ def conversation(*exchanges):
         messages.append(SimpleNamespace(
             id=len(messages) + 1, role=ChatRole.ASSISTANT, content="답", refused=refused
         ))
-    return SavedConversation(messages)
+    SAVED[:] = messages
+
+
+def interested(*exchanges):
+    conversation(*exchanges)
+    return offers.first_interest(1, 1)
 
 
 def test_first_answered_third_substantive_question_only(monkeypatch):
@@ -36,11 +44,9 @@ def test_first_answered_third_substantive_question_only(monkeypatch):
         ("왜 이름을 말 안해?", False),
         ("이 작품은 언제 제작됐나요?", False),
     )
-    assert not offers.first_interest(conversation(*exchanges[:4]), 1, 1)
-    assert offers.first_interest(conversation(*exchanges[:5]), 1, 1)
-    assert not offers.first_interest(
-        conversation(*exchanges, ("다른 근거도 있나요?", False)), 1, 1
-    )
+    assert not interested(*exchanges[:4])
+    assert interested(*exchanges[:5])
+    assert not interested(*exchanges, ("다른 근거도 있나요?", False))
 
 
 def test_refused_third_question_allows_next_answer(monkeypatch):
@@ -51,8 +57,8 @@ def test_refused_third_question_allows_next_answer(monkeypatch):
         ("기법은?", True),
         ("제작 시기는?", False),
     )
-    assert not offers.first_interest(conversation(*questions[:3]), 1, 1)
-    assert offers.first_interest(conversation(*questions), 1, 1)
+    assert not interested(*questions[:3])
+    assert interested(*questions)
 
 
 def test_current_correction_never_offers(monkeypatch):
@@ -61,4 +67,4 @@ def test_current_correction_never_offers(monkeypatch):
     )
     answer = ChatResponse(answer="알겠습니다", refused=False, sources=[])
     body = ChatRequest(question="왜 이름을 말 안해?")
-    assert offers.suggest(None, 1, 1, body, answer) is None
+    assert offers.suggest(1, 1, body, answer) is None
