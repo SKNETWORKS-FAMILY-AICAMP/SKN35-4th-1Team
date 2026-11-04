@@ -40,3 +40,7 @@ data/processed/*.tmp
 
 # Django 로컬 DB
 db.sqlite3
+
+# 배포 (HTTPS 인증서, Flutter 빌드 결과)
+infra/certbot/
+frontend/build/
