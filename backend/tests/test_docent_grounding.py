@@ -121,6 +121,12 @@ def test_model_refusal_uses_server_copy():
 
 
 @pytest.mark.parametrize(("question", "answer", "refused"), [
+    # 설명을 앞에 두고 뒤 문장에서 확인 불가를 밝힌 경우
+    (
+        "추성부도 묵서 번역이 '사람은 동물이' 다음에 어떻게 이어지는지 정확히 알려줘.",
+        "확인 가능한 내용은 있습니다. 따라서 정확한 이어지는 문장을 알려드리기 어렵습니다.",
+        True,
+    ),
     (
         "추성부도 묵서 번역이 '사람은 동물이' 다음에 어떻게 이어지는지 정확히 알려줘.",
         "묵서 번역의 이어지는 문장을 원문에서 찾지 못해 정확한 문장을 제공할 수 없습니다.",
@@ -171,7 +177,7 @@ def test_unanswered_exact_request_is_marked_refused(question, answer, refused):
     )
     assert result.refused is refused
     if refused:
-        assert result.answer == answer[: answer.index("다.") + 2]  # 이유를 밝힌 첫 문장만 남김
+        assert result.answer in answer and result.answer.endswith("다.")  # 이유를 밝힌 문장만 남김
         assert result.sources == []
     else:
         assert result.answer == answer and result.sources

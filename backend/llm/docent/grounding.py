@@ -180,7 +180,7 @@ def context(artwork: object, body: ChatRequest, docs: Sequence[Document]) -> dic
     }
 
 
-# 질문이 정확한 답이나 단정을 요구했는데 답변 첫 문장이 "자료로 확인할 수 없다"면
+# 질문이 정확한 답이나 단정을 요구했는데 답변이 "자료로 확인할 수 없다"고 밝히면
 # 핵심 요청을 수행하지 못한 것이므로 refused=true 로 바로잡는다.
 # ponytail: 표현 목록 기반 규칙. 평가 답변 331건에서 오탐 0건이지만, 새 표현이 늘면 LLM 판정으로 바꾼다.
 _EXACT_REQUEST = re.compile(r"정확히|단정")
@@ -189,17 +189,21 @@ _NO_EVIDENCE_STATEMENT = re.compile(
     r"|자료에 없|단정하기는? 어렵|남아 있지 않|전해지지 않|누락되어 있|자료만으로는[^.!?]{0,15}어렵"
 )
 _HEDGE = re.compile(r"지만|으나|다만")
+_CONCLUSION = re.compile(r"(따라서|그러나|하지만|그래서|결론적으로),?\s*")
 
 
 def unanswered_exact_request(question: str, answer: str) -> str | None:
     """Return the model's own 'cannot confirm' sentence when the core request went unanswered."""
-    first = re.split(r"(?<=[.!?])\s+", answer.strip(), maxsplit=1)[0]
-    if (
-        _EXACT_REQUEST.search(question)
-        and _NO_EVIDENCE_STATEMENT.search(first)
-        and not _HEDGE.search(first)
-    ):
-        return first
+    if not _EXACT_REQUEST.search(question):
+        return None
+    for index, sentence in enumerate(re.split(r"(?<=[.!?])\s+", answer.strip())):
+        # 뒤 문장은 결론을 내릴 때만 본다. 핵심을 답하고 일부만 모르는 답변은 그대로 둔다.
+        conclusion = _CONCLUSION.match(sentence)
+        if index and not conclusion:
+            continue
+        body = sentence[conclusion.end() :] if conclusion else sentence
+        if _NO_EVIDENCE_STATEMENT.search(body) and not _HEDGE.search(body):
+            return sentence
     return None
 
 
