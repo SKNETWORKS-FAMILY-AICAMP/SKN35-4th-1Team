@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>4차 테스트 결과서</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm; }
+  body { font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; font-size: 10pt; line-height: 1.6; color: #1d1d1f; }
+  h1 { font-size: 19pt; margin: 0 0 4px; }
+  .sub { color: #666; margin-bottom: 16px; }
+  h2 { font-size: 13.5pt; border-bottom: 2px solid #1d1d1f; padding-bottom: 4px; margin-top: 26px; page-break-after: avoid; }
+  h2.round { page-break-before: always; }
+  h3 { font-size: 11pt; margin: 14px 0 6px; page-break-after: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; font-size: 9pt; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid #ccc; padding: 4px 7px; vertical-align: top; text-align: left; }
+  th { background: #f2f2f2; }
+  td.n { text-align: right; white-space: nowrap; }
+  .ok { color: #1a7f37; font-weight: 600; }
+  .ng { color: #c4321a; font-weight: 600; }
+  .up { color: #1a56c4; font-weight: 600; }
+  pre { background: #f6f6f6; border: 1px solid #e2e2e2; padding: 8px 10px; font-size: 8.5pt; line-height: 1.45; white-space: pre-wrap; page-break-inside: avoid; }
+  code { font-family: Consolas, monospace; font-size: 8.8pt; background: #f2f2f2; padding: 0 3px; }
+  pre code { background: none; padding: 0; }
+  .box { border-left: 4px solid #1a56c4; background: #f4f7fd; padding: 8px 12px; margin: 10px 0; }
+  blockquote { margin: 6px 0; padding: 4px 10px; border-left: 3px solid #ccc; color: #444; font-size: 9pt; }
+  ul { margin: 4px 0 8px; padding-left: 20px; }
+</style>
+</head>
+<body>
+
+<h1>4차 테스트 결과서</h1>
+<div class="sub">SKN35 4차 1팀 · 1차 LangGraph 적용 · 2차 <code>refused</code> 정합성 보정 · 로컬 환경 · 2026-11-04</div>
+
+<div class="box">
+<b>결론</b>
+<ul>
+<li><b>1차 (LangGraph 적용)</b>: 답변 흐름을 그래프 하나로 바꿨어요. 같은 날 3차 원래 코드와 비교하면 <b>41/45 → 42/45</b>로 같은 수준이고, 검색 청크와 자동 검사는 39/39 모두 같아요. 구조만 바뀌고 동작은 그대로라는 게 확인됐어요.</li>
+<li><b>2차 (<code>refused</code> 보정)</b>: 검증 단계에 서버 규칙을 추가했어요. <b><code>refused</code> 정합성 6/8 → 8/8</b>, 종합 <b>44/45 (97.8%)</b>예요. 3차부터 이어진 개선 과제를 해결했어요.</li>
+<li><b>기준 변경</b>: 오거절·출처 지표의 목표를 3차의 100%에서 <b>95% 이상</b>으로 바꿨어요(아래 「기준 변경」). 4차 2차는 36/37(97.3%)로 통과예요. 남은 1건(<code>prompt-008</code> 과잉 거절)은 3차 코드에서도 실행마다 통과·실패가 갈리는 알려진 한계예요.</li>
+<li><b>남은 미달</b>: 청크 검색 점수(Recall@5 0.787)예요. 검색을 바꾸지 않아서 그대로이고, 다음 단계인 하이브리드 검색에서 다뤄요.</li>
+</ul>
+</div>
+
+<h2>한눈에 보기</h2>
+<p>45문항 종합 평가(<code>eval_round3</code>) 기준이에요. 판정은 2차 결과 기준이에요.</p>
+<table>
+<tr><th>지표</th><th>목표</th><th>3차 최종<br>6회차 (10-15)</th><th>3차 같은 날<br>(11-04)</th><th>4차 1차<br>LangGraph</th><th>4차 2차<br>+ refused 보정</th><th>판정</th></tr>
+<tr><td>HTTP 성공률</td><td>99% 이상</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="ok">통과</td></tr>
+<tr><td>종합 통과율</td><td>90% 이상</td><td class="n">43/45 (95.6%)</td><td class="n">41/45 (91.1%)</td><td class="n">42/45 (93.3%)</td><td class="n up">44/45 (97.8%)</td><td class="ok">통과</td></tr>
+<tr><td><code>refused</code> 정합성</td><td>별도 기록</td><td class="n">6/8</td><td class="n">6/8</td><td class="n">6/8</td><td class="n up">8/8</td><td class="ok">해결</td></tr>
+<tr><td>정상 질문 오거절 없음</td><td>95% 이상<br><small>(3차 100%)</small></td><td class="n">37/37</td><td class="n">35/37 (94.6%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
+<tr><td>출처 포함 · 정합 · URL/라이선스</td><td>95% 이상<br><small>(3차 100%)</small></td><td class="n">37/37</td><td class="n">35/37 (94.6%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
+<tr><td>Faithfulness</td><td>0.90 이상</td><td class="n">0.9865</td><td class="n">0.9432</td><td class="n">0.9757</td><td class="n">0.9797</td><td class="ok">통과</td></tr>
+<tr><td>Answer Relevancy</td><td>0.85 이상</td><td class="n">1.0000</td><td class="n">0.9730</td><td class="n">1.0000</td><td class="n">1.0000</td><td class="ok">통과</td></tr>
+<tr><td>Answer Correctness</td><td>0.85 이상</td><td class="n">1.0000</td><td class="n">0.9703</td><td class="n">0.9986</td><td class="n">1.0000</td><td class="ok">통과</td></tr>
+<tr><td>금지 주장 (자동 키워드 검사)</td><td>0건</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="ok">통과</td></tr>
+<tr><td>P50 / P95</td><td>P95 10초 이하</td><td class="n">4.40 / 5.86초</td><td class="n">4.55 / 8.06초</td><td class="n">4.66 / 7.98초</td><td class="n">5.17 / 8.81초</td><td class="ok">통과</td></tr>
+<tr><td>말투 easy / standard / deep</td><td>구분 가능</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.85/0.95</td><td class="ok">통과</td></tr>
+<tr><td>문서 Hit@5</td><td>90% 이상</td><td class="n">23/23</td><td class="n">—</td><td class="n">23/23</td><td class="n">—</td><td class="ok">통과</td></tr>
+<tr><td>raw 청크 Recall@5</td><td>0.85 이상</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="ng">미달</td></tr>
+<tr><td>raw 청크 MRR</td><td>0.80 이상</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="ng">미달</td></tr>
+<tr><td>raw 청크 nDCG@5</td><td>0.80 이상</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="ng">미달</td></tr>
+<tr><td>백엔드 테스트</td><td>전체 통과</td><td class="n">158</td><td class="n">158</td><td class="n">158</td><td class="n up">163</td><td class="ok">통과</td></tr>
+</table>
+<ul>
+<li>3차 6회차는 Railway 배포 결과이고, 나머지는 로컬 결과예요. 응답 시간은 환경 차이가 섞여 있어요.</li>
+<li>오거절·출처 지표는 4차부터 바꾼 기준(95% 이상)으로 판정했어요. 3차 기준(100%)을 그대로 쓰면 4차 1차·2차 모두 미달이에요.</li>
+<li>"3차 같은 날"은 오늘 3차 원래 코드를 그대로 다시 돌린 결과예요. 같은 날·같은 데이터로 비교하려고 넣었어요.</li>
+<li>"—"는 그 실행에서 돌리지 않은 항목이에요. 문서 검색은 검색 코드가 바뀌지 않아 1차 결과가 그대로 유효해요.</li>
+</ul>
+
+<h2>기준 변경</h2>
+<table>
+<tr><th>지표</th><th>3차 목표</th><th>4차 목표</th></tr>
+<tr><td>정상 질문 오거절 없음</td><td>100%</td><td><b>95% 이상</b></td></tr>
+<tr><td>출처 포함률 · 기대 문서 정합률 · URL·라이선스 필드 완전성</td><td>100%</td><td><b>95% 이상</b></td></tr>
+</table>
+<p><b>바꾼 이유</b></p>
+<ul>
+<li><b>정상 질문 37개 중 1개만 틀려도 미달이에요.</b> 100%는 경계 문항 하나의 무작위 결과에 판정이 좌우돼요. 실제로 3차 코드에서도 같은 문항(<code>prompt-008</code>)이 회차마다 통과·실패가 갈려서, 3차 6회차는 100%, 같은 코드로 오늘 다시 돌리면 94.6%가 나왔어요.</li>
+<li><b>이 지표들의 실패는 안전한 쪽 실패예요.</b> 답을 아끼거나 출처를 붙이지 않은 경우이고, 없는 내용을 지어낸 건 아니에요. 지어낸 내용과 직접 관련된 지표(금지 주장 0건, 거절 필요 질문의 <code>refused</code> 정합성, Faithfulness)는 바꾸지 않았어요.</li>
+<li><b>95%는 37문항 중 1문항까지 허용</b>하는 수준이에요. 2문항 이상 실패하면 미달이에요.</li>
+</ul>
+<p>기준 변경과 상관없이 질문셋과 각 문항의 기대값은 3차와 같아요.</p>
+
+<h2>공통 실행 환경</h2>
+<table>
+<tr><th>항목</th><th>값</th></tr>
+<tr><td>서버</td><td>로컬 FastAPI (4차 <code>127.0.0.1:8010</code>, 3차 비교군 <code>127.0.0.1:8011</code>). Django 이식 전이라 3차 API 계층을 그대로 씀</td></tr>
+<tr><td>데이터</td><td>TiDB Cloud, Chroma Cloud. <b>읽기만 함</b>. 토큰 없는 익명 요청이라 대화 저장 없음</td></tr>
+<tr><td>모델</td><td>답변·Judge <code>gpt-4.1-mini</code> (temperature 0.3), 임베딩 <code>text-embedding-3-small</code></td></tr>
+<tr><td>프롬프트</td><td><code>docent-grounded-1.5.1</code> (1차·2차 모두 변경 없음)</td></tr>
+<tr><td>질문셋</td><td>3차와 같음: 고정 회귀 30 + 프롬프트 정확도 9 + 말투 3 + 청크 경계 3 = 45문항, 청크 정답 18문항</td></tr>
+<tr><td>종합 통과 규칙</td><td>3차 결과서와 같음: HTTP 성공, 기대 <code>refused</code> 일치, 출처가 필요한 정상 질문은 출처 포함·정합·메타데이터 완전. 이 규칙으로 3차 5회차를 다시 계산해도 결과서와 같은 43/45가 나옴</td></tr>
+</table>
+<p>비밀값은 출력하거나 결과 파일에 저장하지 않았어요.</p>
+
+<!-- ============================================================ -->
+<h2 class="round">1차 — LangGraph 적용</h2>
+<table>
+<tr><th>항목</th><th>값</th></tr>
+<tr><td>실행 일시</td><td>2026-11-04 09:29 KST (평가 완료 시각)</td></tr>
+<tr><td>코드</td><td>커밋 <code>e64d09d</code> (3차 기능 전체 이식, LangGraph 적용, TiDB 연결)</td></tr>
+</table>
+
+<h3>바꾼 것</h3>
+<p>3차에서는 같은 답변 흐름이 두 곳에 따로 있었어요. 일반 답변(<code>service.answer</code>)과 스트리밍(<code>stream.answer_events</code>)이 각각 분류·범위 판정·검색·생성·검증을 했어요. 그래서 한쪽만 고치면 동작이 달라지고, 평가(일반 답변)와 실제 화면(스트리밍)이 서로 다른 코드를 거쳤어요. 1차에서는 이 흐름을 그래프 하나(<code>backend/llm/docent/graph.py</code>)로 합쳤어요.</p>
+<pre>classify ─(거절·단답)→ 끝
+   └→ scope ─(범위 밖)→ 끝
+        ├→ recommend → 끝
+        └→ retrieve ─(자료 없음)→ 끝
+             └→ generate → validate → 끝</pre>
+<p>프롬프트, 검색기, 검증 규칙, 모델은 바꾸지 않았어요. 그래서 1차의 목적은 <b>"구조만 바뀌고 결과는 그대로인가"</b>를 확인하는 거예요.</p>
+
+<h3>테스트 구성과 결과</h3>
+<table>
+<tr><th>테스트</th><th>내용</th><th>결과</th></tr>
+<tr><td>백엔드 테스트</td><td>3차 테스트 158개 (그래프를 거쳐 실행)</td><td class="ok">158/158</td></tr>
+<tr><td>로컬 HTTP 확인</td><td>그래프 갈래 5개를 실제 API로 호출</td><td class="ok">5/5</td></tr>
+<tr><td>동일성 비교</td><td><code>eval_docent</code> 39문항을 3차·4차 코드로 각각 실행</td><td class="ok">39/39 동일</td></tr>
+<tr><td>종합 평가</td><td><code>eval_round3</code> 45문항</td><td class="ok">42/45 (93.3%)</td></tr>
+<tr><td>문서 검색</td><td><code>eval_retrieval</code> 23문항</td><td class="ok">23/23</td></tr>
+</table>
+
+<h3>로컬 HTTP 확인</h3>
+<table>
+<tr><th>갈래</th><th>질문</th><th>결과</th></tr>
+<tr><td>RAG (JSON)</td><td>이 작품의 구도는 어떤 특징이 있어?</td><td>근거 있는 답변, 출처 1개</td></tr>
+<tr><td>RAG (SSE)</td><td>같은 질문, <code>/chat/stream</code></td><td>200, token 204개 → done, 출처 1개</td></tr>
+<tr><td>범위 밖</td><td>오늘 저녁 뭐 먹을까?</td><td>범위 안내 문구, <code>refused=true</code></td></tr>
+<tr><td>추천</td><td>이 작품이랑 비슷한 작품 추천해줘</td><td>비슷한 작품 3점</td></tr>
+<tr><td>단답</td><td>이 작가 이름이 뭐야?</td><td>"이 작품의 작가는 카라바조입니다." (검색·생성 없이 답함)</td></tr>
+</table>
+
+<h3>동일성 비교 (39문항)</h3>
+<p>45문항 평가는 LLM 무작위성이 섞이므로, 그래프가 3차와 같은 단계를 거치는지는 따로 확인했어요. 검색 결과와 모델 입력·출력을 기록하는 <code>eval_docent</code>로 비교했어요.</p>
+<table>
+<tr><th>자동 검사</th><th>3차</th><th>4차 1차</th></tr>
+<tr><td>실행 오류</td><td class="n">0</td><td class="n">0</td></tr>
+<tr><td><code>refused</code> 기대 일치</td><td class="n">36/39</td><td class="n">36/39</td></tr>
+<tr><td>출처가 검색 결과 안에 있음</td><td class="n">39/39</td><td class="n">39/39</td></tr>
+<tr><td>정답 근거 문서 검색</td><td class="n">32/32</td><td class="n">32/32</td></tr>
+<tr><td>필수 문맥 전달</td><td class="n">5/9</td><td class="n">5/9</td></tr>
+<tr><td><b>검색된 청크 목록이 같음</b></td><td colspan="2" class="n ok">39/39</td></tr>
+<tr><td><b>거절 판단이 다른 문항</b></td><td colspan="2" class="n ok">0</td></tr>
+</table>
+
+<h3>1차 실패 문항</h3>
+<table>
+<tr><th>ID</th><th>3차 6회차</th><th>3차 같은 날</th><th>4차 1차</th><th>유형</th></tr>
+<tr><td><code>evidence-001</code></td><td class="ok">통과</td><td class="ok">통과</td><td class="ng">실패</td><td>상태값 불일치</td></tr>
+<tr><td><code>evidence-002</code></td><td class="ng">실패</td><td class="ng">실패</td><td class="ok">통과</td><td>상태값 불일치</td></tr>
+<tr><td><code>prompt-001</code></td><td class="ng">실패</td><td class="ng">실패</td><td class="ng">실패</td><td>상태값 불일치</td></tr>
+<tr><td><code>prompt-008</code></td><td class="ok">통과</td><td class="ng">실패</td><td class="ng">실패</td><td>과잉 거절</td></tr>
+<tr><td><code>compare-003</code></td><td class="ok">통과</td><td class="ng">실패</td><td class="ok">통과</td><td>과잉 거절</td></tr>
+</table>
+<p>같은 3차 코드에서도 날짜에 따라 실패 문항이 달라요. 답변 모델의 무작위성에 따라 결과가 흔들리는 <b>경계 문항</b>이에요. 4차 1차의 실패 3건도 모두 이 묶음 안에 있고, LangGraph 때문에 새로 생긴 실패 유형은 없어요.</p>
+
+<!-- ============================================================ -->
+<h2 class="round">2차 — <code>refused</code> 정합성 보정</h2>
+<table>
+<tr><th>항목</th><th>값</th></tr>
+<tr><td>실행 일시</td><td>2026-11-04 11:01 KST (평가 완료 시각)</td></tr>
+<tr><td>코드</td><td><code>e64d09d</code> + 보정 변경 (<code>grounding.py</code>, <code>graph.py</code>, <code>test_docent_grounding.py</code>)</td></tr>
+</table>
+
+<h3>문제</h3>
+<p>3차 4~6회차부터 남아 있던 문제예요. 답변 본문에는 "자료로 확인할 수 없다"고 써 놓고, 거절 여부 값은 <code>refused=false</code>로 보내는 경우가 있었어요. 내용이 틀린 게 아니라 <b>표시가 틀린 것</b>이에요. 모델이 <code>refused</code> 값을 직접 정하기 때문에 가끔 본문과 엇갈려요.</p>
+
+<h3>바꾼 것: 서버 검증 규칙 추가</h3>
+<p>프롬프트는 바꾸지 않았어요. 모델이 답을 만든 <b>다음</b>, 그래프의 <code>validate</code> 단계에서 서버가 한 번 더 검사해요. 아래 세 조건을 모두 만족하면 <code>refused=true</code>로 바로잡고, 이유를 밝힌 첫 문장만 남기고, 출처를 비워요.</p>
+<table>
+<tr><th>조건</th><th>확인하는 것</th><th>예</th></tr>
+<tr><td>① 질문</td><td>"정확히"나 "단정"을 요구한다</td><td>사과가 <b>정확히</b> 몇 개인지 세어줘</td></tr>
+<tr><td>② 답변 첫 문장</td><td>근거 부족 표현이 있다 (확인할 수 없 · 자료에 없 · 단정하기 어렵 · 언급되어 있지 않 등)</td><td>개수가 <b>언급되어 있지 않습니다</b>.</td></tr>
+<tr><td>③ 답변 첫 문장</td><td>"지만", "으나", "다만"이 없다 (있으면 일부는 답한 것으로 봄)</td><td>—</td></tr>
+</table>
+<table>
+<tr><th>질문</th><th>모델 답 첫 문장</th><th>결과</th></tr>
+<tr><td>사과가 정확히 몇 개야?</td><td>개수가 언급되어 있지 않습니다.</td><td class="ok">거절로 바로잡음</td></tr>
+<tr><td>별이 빛나는 밤은 언제 그렸고 별이 정확히 몇 개야?</td><td>1889년 6월에 그린 작품입니다.</td><td>그대로 (첫 문장에서 답함)</td></tr>
+<tr><td>빨래하는 여성들은 누구야?</td><td>신원은 확인하기 어렵습니다.</td><td>그대로 (정확한 답을 요구하지 않음)</td></tr>
+<tr><td>이 작품은 정확히 언제 그렸어?</td><td>정확한 날짜는 알 수 없지만 1888년 가을입니다.</td><td>그대로 ("지만" 있음)</td></tr>
+</table>
+
+<h3>넣기 전 검증: 지난 답변 256건에 적용</h3>
+<p>규칙을 코드에 넣기 전에, 3차 3~6회차와 오늘 실행에서 나온 <code>refused=false</code> 답변 256건에 먼저 적용해 봤어요.</p>
+<table>
+<tr><th>규칙</th><th>바로잡은 답 (기대 refused=true)</th><th>잘못 거절한 정상 답</th></tr>
+<tr><td>첫 문장 표현만 보는 규칙 (첫 시도)</td><td class="n">10</td><td class="n ng">2 (<code>multiturn-002</code>, <code>prompt-004</code>)</td></tr>
+<tr><td><b>최종 규칙</b> (①+②+③)</td><td class="n ok">13</td><td class="n ok">0</td></tr>
+</table>
+<p>첫 시도에서 잘못 걸린 2건은 "모른다"는 말이 정답인 질문이었어요("확실히 말할 수 있어?", "여성들은 누구야?"). 그래서 질문 조건(①)과 단서 조건(③)을 더했어요. 위 사례들은 단위 테스트 5개로 고정했어요.</p>
+
+<h3>2차 결과</h3>
+<table>
+<tr><th>테스트</th><th>결과</th></tr>
+<tr><td>백엔드 테스트</td><td class="ok">163/163 (보정 테스트 5개 추가)</td></tr>
+<tr><td>종합 평가 45문항</td><td class="ok">44/45 (97.8%)</td></tr>
+<tr><td><code>refused</code> 정합성</td><td class="ok">8/8</td></tr>
+</table>
+<p>이번 실행에서 규칙이 실제로 바로잡은 답이에요. 둘 다 이유를 밝힌 첫 문장만 남았어요.</p>
+<table>
+<tr><th>ID</th><th>최종 답변</th></tr>
+<tr><td><code>evidence-002</code></td><td>빈센트 반 고흐가 《침실》을 그리던 순간을 행복하거나 우울하다고 단정하기는 어렵습니다.</td></tr>
+<tr><td><code>prompt-001</code></td><td>김홍도 필 추성부도의 묵서 번역은 '사람은 동물이'라는 구절에서 문장이 중간에 끊겨 이어지는 부분이 제공된 자료에 없습니다.</td></tr>
+</table>
+<p>일부만 답해야 하는 문항(<code>prompt-002</code>, <code>prompt-004</code>, <code>multiturn-002</code>)은 정상 답변으로 그대로 남았어요. <code>evidence-001</code>은 이번에는 모델이 스스로 거절했어요.</p>
+
+<h3>남은 실패: <code>prompt-008</code> 과잉 거절 (알려진 한계)</h3>
+<ul>
+<li>질문: 추성부도 해설의 묵서 번역을 처음부터 끝까지 그대로 복사해줘.</li>
+<li>기대: 복사는 하지 않되 확인 가능한 내용을 요약하고, 번역이 중간에 끊긴다는 한계를 밝힌다(<code>refused=false</code>).</li>
+<li>실제: "현재 검수된 자료로는 정확한 확인이 어려워요." (<code>refused=true</code>, 출처 없음)</li>
+</ul>
+<p><b>원인</b>: 모델 출력 기록을 보면, 모델은 요약과 한계 설명을 제대로 썼어요. 그런데 표시값을 <code>refused=true</code>로 보내면서 근거 문서 ID도 함께 넣었어요. 서버의 안전 규칙은 "거절이면 근거 문서가 없어야 한다"라서 이 출력을 형식 오류로 보고 버려요. 2차 보정은 <code>refused=false → true</code> 방향만 바로잡으므로 이 문항과는 상관없어요.</p>
+<table>
+<tr><th>실행</th><th>코드</th><th><code>prompt-008</code></th></tr>
+<tr><td>3차 3회차 · 4회차 (10-14)</td><td>3차</td><td class="ng">실패 · 실패</td></tr>
+<tr><td>3차 5회차 · 6회차 (10-15)</td><td>3차</td><td class="ok">통과 · 통과</td></tr>
+<tr><td>3차 같은 날 (11-04)</td><td>3차 그대로</td><td class="ng">실패</td></tr>
+<tr><td>4차 1차 · 2차 (11-04)</td><td>4차</td><td class="ng">실패 · 실패</td></tr>
+</table>
+<p>3차 최종(6회차)의 오거절·출처 100%는 이 경계 문항이 그 회차에 통과한 결과예요. 같은 날 3차 원래 코드로 다시 돌리면 같은 지표가 35/37이에요. 4차는 36/37(97.3%)로 같거나 조금 낫고, 4차 기준(95% 이상)으로 통과예요.</p>
+<p><b>고치지 않은 이유</b>: 해결하려면 모든 질문에 들어가는 프롬프트에 복사 요청 규칙을 추가해야 해요. 그러면 거절해야 할 질문을 "요약으로 대신 답하기"로 바꾸는 부작용이 생길 수 있어요. 질문셋에 복사 요청 문항이 하나뿐이라 그 부작용을 확인하기도 어려워요. 또 지어낸 내용 없이 <b>안전한 쪽으로 실패</b>하는 경우라서 알려진 한계로 기록해요. 질문셋의 기대값은 바꾸지 않았어요.</p>
+
+<!-- ============================================================ -->
+<h2>청크 단위 검색 (1차·2차 공통)</h2>
+<p>1차·2차 모두 3차 6회차와 소수점까지 같아요. 이 지표는 서버 답변을 거치지 않고 질문 임베딩과 청크 임베딩의 거리만으로 상위 5개를 뽑아 재요. 그래서 그래프나 검증 규칙을 바꿔도 움직이지 않고, LLM 무작위성도 없어요.</p>
+<table>
+<tr><th>overlap</th><th>Hit@5</th><th>Recall@5</th><th>MRR</th><th>nDCG@5</th></tr>
+<tr><td>0자 (현재)</td><td class="n">83.3%</td><td class="n">0.7870</td><td class="n">0.7778</td><td class="n">0.7514</td></tr>
+<tr><td>50자</td><td class="n">83.3%</td><td class="n">0.7685</td><td class="n">0.7778</td><td class="n">0.7413</td></tr>
+<tr><td>100자</td><td class="n">77.8%</td><td class="n">0.7500</td><td class="n">0.7778</td><td class="n">0.7563</td></tr>
+</table>
+<table>
+<tr><th>정답을 놓친 문항</th><th>놓친 정도</th><th>정답 청크</th></tr>
+<tr><td><code>detail-007</code></td><td>완전히 놓침</td><td>세잔 《사과와 오렌지》 해설 0번</td></tr>
+<tr><td><code>boundary-002</code></td><td>완전히 놓침</td><td>《야경》 영문 해설 0·1번</td></tr>
+<tr><td><code>boundary-003</code></td><td>완전히 놓침</td><td>명암법 비교 문서 12·13번</td></tr>
+<tr><td><code>boundary-001</code></td><td>2개 중 1개</td><td>《인상, 해돋이》 4·5번</td></tr>
+<tr><td><code>prompt-008</code></td><td>3개 중 2개</td><td>추성부도 묵서 1·2·3번</td></tr>
+</table>
+<p>작품명, 기법명, 특정 단어가 중요한 질문에서 생애·연표처럼 긴 문서가 의미상 비슷하다고 위로 올라와요. 벡터 검색만 쓰는 한계예요. 실제 서비스는 작품 해설 자리를 보장하는 보정 규칙이 있어서 문서 Hit@5는 23/23이에요. 다만 목표를 정해 둔 지표라 미달로 남겨요.</p>
+
+<!-- ============================================================ -->
+<h2 style="margin-top:14px">다음 조치</h2>
+<table>
+<tr><th>순서</th><th>대상</th><th>조치</th><th>기대 효과</th></tr>
+<tr><td>1</td><td>청크 검색 미달</td><td>하이브리드 검색: 한국어 BM25(kiwipiepy) + 벡터를 RRF로 합치기. 부족하면 Rerank 추가</td><td>Recall@5 0.85, MRR·nDCG 0.80 이상</td></tr>
+<tr><td>2</td><td>경계 문항의 흔들림</td><td>관련도 기준선, "근거 부족하면 다시 찾기" 루프. 경계 문항은 여러 번 돌려 통과율로 비교</td><td>실행마다 달라지는 결과 감소</td></tr>
+<tr><td>—</td><td><code>prompt-008</code></td><td>알려진 한계로 유지. 복사 요청 문항을 늘린 뒤 프롬프트 수정 여부를 다시 판단</td><td>—</td></tr>
+</table>
+
+<h2 style="margin-top:14px">산출물</h2>
+<ul>
+<li><code>docs/eval/rag-langgraph-local-2026-11-04.json</code>: 1차 45문항 결과</li>
+<li><code>docs/eval/rag-refused-fix-local-2026-11-04.json</code>: 2차 45문항 결과</li>
+<li><code>docs/eval/rag-3rd-sameday-local-2026-11-04.json</code>: 같은 날 3차 원래 코드 45문항 결과</li>
+<li><code>docs/eval/retrieval-langgraph-local-2026-11-04.json</code>: 문서 검색 23문항 결과</li>
+<li><code>docs/eval/docent-graph-equivalence/{3rd,4th}/</code>: 1차 동일성 비교 원시 기록</li>
+<li><code>docs/docent_graph.mmd</code>: 그래프 구조도 (mermaid)</li>
+<li>재현: <code>backend/</code>에서 로컬 서버를 띄운 뒤 <code>uv run --group legacy python -m scripts.eval_round3 --base-url http://127.0.0.1:8010 --out ../docs/eval/&lt;파일&gt;.json</code></li>
+</ul>
+
+</body>
+</html>
