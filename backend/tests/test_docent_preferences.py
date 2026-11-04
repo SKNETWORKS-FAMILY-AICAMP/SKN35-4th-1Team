@@ -3,12 +3,12 @@
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 from langchain_core.documents import Document
 
+from chat.schemas import ChatRequest, ChatTurn
+from config.exceptions import HTTPException
 from llm.docent import graph as docent
 from llm.rag.classifier import classify
-from app.schemas.chat import ChatRequest, ChatTurn
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ def test_style_uses_question_and_citations_without_saved_priority(setup, monkeyp
         )
 
     monkeypatch.setattr(docent, "generate", generate)
-    result = docent.answer(None, 1, ChatRequest(question="설명해 줘"), user_id=1)
+    result = docent.answer(1, ChatRequest(question="설명해 줘"), user_id=1)
     assert not result.refused and result.sources[0].document_id == 2
     assert "전문 용어" in observed["prompt"]
     assert "이번 질문에서 요청한 주제와 설명 깊이" in observed["prompt"]
@@ -79,7 +79,7 @@ def test_easy_style_allows_detailed_answers_without_topic_order(setup, monkeypat
             explanation_priorities=["artist_life", "technique", "background"],
         ),
     )
-    instruction = docent.instructions(None, 1)
+    instruction = docent.instructions(1)
     assert "자세한 질문의 답을 짧게 줄이지" in instruction
     assert "작가 생애" not in instruction
 
@@ -93,7 +93,7 @@ def test_invented_or_missing_citations_refuse(setup, monkeypatch, ids):
             answer="근거 없는 답변", refused=False, used_document_ids=ids
         ),
     )
-    result = docent.answer(None, 1, ChatRequest(question="설명해 줘"))
+    result = docent.answer(1, ChatRequest(question="설명해 줘"))
     assert result.refused and result.sources == []
 
 
@@ -102,7 +102,7 @@ def test_no_documents_never_calls_model(setup, monkeypatch):
     monkeypatch.setattr(
         docent, "generate", lambda *a: pytest.fail("근거 없이 LLM 호출")
     )
-    response = docent.answer(None, 1, ChatRequest(question="설명해 줘"))
+    response = docent.answer(1, ChatRequest(question="설명해 줘"))
     assert response.refused
     assert response.answer == (
         "현재 검수된 자료로는 정확한 확인이 어려워요. "
@@ -131,7 +131,7 @@ def test_identity_and_wording_corrections_skip_rag(setup, monkeypatch, question,
     monkeypatch.setattr(docent, "retrieve", lambda *a: pytest.fail("카탈로그 단답에 검색 호출"))
     monkeypatch.setattr(docent, "generate", lambda *a: pytest.fail("카탈로그 단답에 생성 호출"))
 
-    result = docent.answer(None, 1, ChatRequest(question=question, history=history))
+    result = docent.answer(1, ChatRequest(question=question, history=history))
     assert not result.refused and result.sources == []
     assert expected in result.answer
     assert len(result.answer) < 120
@@ -147,7 +147,7 @@ def test_identity_question_overrides_earlier_no_name_request(setup, monkeypatch)
         ChatTurn(role="user", content="클로드 모네라는 작가의 이름을 다시는 답변에 넣지마"),
         ChatTurn(role="assistant", content="알겠습니다."),
     ])
-    result = docent.answer(None, 1, body)
+    result = docent.answer(1, body)
     assert result.answer == "이 작품의 작가는 클로드 모네입니다."
 
 
@@ -159,7 +159,7 @@ def test_multiple_artist_identity_question_does_not_take_single_artist_shortcut(
     )
     monkeypatch.setattr(docent.docent_scope, "is_artwork_request", lambda *a: False)
     monkeypatch.setattr(docent, "retrieve", lambda *a: pytest.fail("범위 밖 질문에 검색 호출"))
-    result = docent.answer(None, 1, ChatRequest(question="모네와 세잔 작가 이름 이야기해줘"))
+    result = docent.answer(1, ChatRequest(question="모네와 세잔 작가 이름 이야기해줘"))
     assert result.refused
 
 
@@ -167,12 +167,12 @@ def test_collection_action_refuses_before_retrieval(setup, monkeypatch):
     monkeypatch.setattr(
         docent,
         "classify_artwork",
-        lambda _db, _artwork_id, question: classify(question, "claude-monet"),
+        lambda _artwork_id, question: classify(question, "claude-monet"),
     )
     monkeypatch.setattr(docent, "retrieve", lambda *a: pytest.fail("앱 기능 요청에 자료 검색"))
     monkeypatch.setattr(docent, "generate", lambda *a: pytest.fail("앱 기능 요청에 LLM 호출"))
 
-    response = docent.answer(None, 1, ChatRequest(question="이거 내 컬렉션에 추가해줘"))
+    response = docent.answer(1, ChatRequest(question="이거 내 컬렉션에 추가해줘"))
 
     assert response.refused
     assert response.sources == []
@@ -190,13 +190,13 @@ def test_collection_action_refuses_before_retrieval(setup, monkeypatch):
 def test_clear_unrelated_chat_refuses_before_retrieval(setup, monkeypatch, question):
     monkeypatch.setattr(
         docent, "classify_artwork",
-        lambda _db, _artwork_id, text: classify(text, "paul-cezanne"),
+        lambda _artwork_id, text: classify(text, "paul-cezanne"),
     )
     monkeypatch.setattr(docent.docent_scope, "is_artwork_request", lambda *a: pytest.fail("명백한 범위 밖 질문에 AI 분류 호출"))
     monkeypatch.setattr(docent, "retrieve", lambda *a: pytest.fail("범위 밖 질문에 자료 검색"))
     monkeypatch.setattr(docent, "generate", lambda *a: pytest.fail("범위 밖 질문에 답변 생성"))
 
-    response = docent.answer(None, 1, ChatRequest(question=question))
+    response = docent.answer(1, ChatRequest(question=question))
 
     assert response.refused
     assert response.sources == []
@@ -208,7 +208,7 @@ def test_semantic_scope_gate_refuses_unlisted_topic_before_retrieval(setup, monk
     monkeypatch.setattr(docent, "retrieve", lambda *a: pytest.fail("범위 밖 질문에 자료 검색"))
     monkeypatch.setattr(docent, "generate", lambda *a: pytest.fail("범위 밖 질문에 답변 생성"))
 
-    response = docent.answer(None, 1, ChatRequest(question="이번 주 운동 루틴 알려줘"))
+    response = docent.answer(1, ChatRequest(question="이번 주 운동 루틴 알려줘"))
 
     assert response.refused
     assert response.sources == []
@@ -221,7 +221,7 @@ def test_search_failure_uses_approved_message(setup, monkeypatch):
 
     monkeypatch.setattr(docent, "retrieve", fail)
     with pytest.raises(HTTPException) as exc:
-        docent.answer(None, 1, ChatRequest(question="설명해 줘"))
+        docent.answer(1, ChatRequest(question="설명해 줘"))
     assert exc.value.status_code == 503
     assert exc.value.detail == "작품 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."
 
@@ -245,7 +245,6 @@ def test_chat_tab_style_overrides_saved_style(setup, monkeypatch, style, expecte
 
     monkeypatch.setattr(docent, "generate", generate)
     docent.answer(
-        None,
         1,
         ChatRequest(question="설명해 줘", explanation_style=style),
         user_id=1,

@@ -18,24 +18,20 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from datetime import UTC, date, datetime, time
+from datetime import date, datetime, time
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, select
-from sqlalchemy.dialects.mysql import insert
-from sqlalchemy.orm import Session
+from django.db import transaction
 
-from app.core.config import get_settings
-from app.db.session import SessionLocal
-from app.models import (
-    Artwork,
+from accounts.models import User, UserPreference
+from catalog.models import Artwork
+from config.app_settings import get_settings
+from library.models import (
     ArtworkLike,
     ArtworkView,
     Collection,
     CollectionItem,
     DiaryEntry,
-    User,
-    UserPreference,
 )
 
 # (날짜, 작품 slug, 공개 여부, 본문)
@@ -86,84 +82,84 @@ PREFERENCE = {
 
 
 def at_local(day: date, hour: int) -> datetime:
-    """앱 시간대(Asia/Seoul)의 그날 그 시각을 DB 저장 형식인 naive UTC 로 바꾼다."""
-    tz = ZoneInfo(get_settings().app_timezone)
-    return datetime.combine(day, time(hour), tz).astimezone(UTC).replace(tzinfo=None)
+    """앱 시간대(Asia/Seoul)의 그날 그 시각."""
+    return datetime.combine(day, time(hour), ZoneInfo(get_settings().app_timezone))
 
 
-def artwork_ids(session: Session) -> dict[str, int]:
+def artwork_ids() -> dict[str, int]:
     slugs = {s for _, s, _, _ in DIARY} | set(LIKES)
     slugs |= {s for _, works in COLLECTIONS.values() for s in works}
-    found = dict(session.execute(select(Artwork.slug, Artwork.id).where(Artwork.slug.in_(slugs))).all())
+    found = dict(Artwork.objects.filter(slug__in=slugs).values_list("slug", "id"))
     missing = sorted(slugs - set(found))
     if missing:
         raise SystemExit("DB 에 없는 작품: " + ", ".join(missing))
     return found
 
 
-def seed(session: Session, user_id: int, ids: dict[str, int]) -> Counter:
+def seed(user_id: int, ids: dict[str, int]) -> Counter:
     stats: Counter = Counter()
 
-    if session.get(UserPreference, user_id) is None:
-        session.add(UserPreference(user_id=user_id, **PREFERENCE))
+    if not UserPreference.objects.filter(user_id=user_id).exists():
+        UserPreference.objects.create(user_id=user_id, **PREFERENCE)
         stats["설정 추가"] += 1
     else:
         stats["설정 유지(이미 있음)"] += 1
 
     for slug in LIKES:
-        r = session.execute(insert(ArtworkLike).values(user_id=user_id, artwork_id=ids[slug]).prefix_with("IGNORE"))
-        stats["좋아요 추가" if r.rowcount else "좋아요 유지"] += 1
+        _, created = ArtworkLike.objects.get_or_create(user_id=user_id, artwork_id=ids[slug])
+        stats["좋아요 추가" if created else "좋아요 유지"] += 1
 
-    existing = {d.entry_date: d for d in session.scalars(
-        select(DiaryEntry).where(DiaryEntry.user_id == user_id, DiaryEntry.entry_date.in_([d for d, *_ in DIARY])))}
+    existing = {d.entry_date: d for d in DiaryEntry.objects.filter(
+        user_id=user_id, entry_date__in=[d for d, *_ in DIARY])}
     for day, slug, public, content in DIARY:
         written = at_local(day, 21)
         values = {"artwork_id": ids[slug], "is_public": public, "content": content}
         entry = existing.get(day)
         if entry is None:
-            session.add(DiaryEntry(user_id=user_id, entry_date=day, created_at=written, updated_at=written, **values))
+            entry = DiaryEntry.objects.create(user_id=user_id, entry_date=day, **values)
+            # auto_now 값을 쓴 시각으로 되돌린다
+            DiaryEntry.objects.filter(id=entry.id).update(created_at=written, updated_at=written)
             stats["감상글 추가"] += 1
         elif any(getattr(entry, k) != v for k, v in values.items()):
             for k, v in values.items():
                 setattr(entry, k, v)
+            entry.save()
             stats["감상글 갱신"] += 1
         else:
             stats["감상글 유지"] += 1
         # 감상글을 쓴 날 그 작품을 본 기록. 이미 있으면 횟수를 늘리지 않는다
         viewed = at_local(day, 20)
-        r = session.execute(insert(ArtworkView).values(
-            user_id=user_id, artwork_id=ids[slug], viewed_on=day, view_count=1,
-            first_viewed_at=viewed, last_viewed_at=viewed).prefix_with("IGNORE"))
-        stats["열람 추가" if r.rowcount else "열람 유지"] += 1
+        _, created = ArtworkView.objects.get_or_create(
+            user_id=user_id, artwork_id=ids[slug], viewed_on=day,
+            defaults={"view_count": 1, "first_viewed_at": viewed, "last_viewed_at": viewed})
+        stats["열람 추가" if created else "열람 유지"] += 1
 
     for name, (description, works) in COLLECTIONS.items():
-        col = session.scalar(select(Collection).where(Collection.user_id == user_id, Collection.name == name))
+        col = Collection.objects.filter(user_id=user_id, name=name).first()
         if col is None:
-            col = Collection(user_id=user_id, name=name, description=description)
-            session.add(col)
-            session.flush()
+            col = Collection.objects.create(user_id=user_id, name=name, description=description)
             stats["컬렉션 추가"] += 1
         elif col.description != description:
             col.description = description
+            col.save()
             stats["컬렉션 갱신"] += 1
         else:
             stats["컬렉션 유지"] += 1
         for slug in works:
-            r = session.execute(insert(CollectionItem).values(collection_id=col.id, artwork_id=ids[slug]).prefix_with("IGNORE"))
-            stats["담기 추가" if r.rowcount else "담기 유지"] += 1
+            _, created = CollectionItem.objects.get_or_create(collection_id=col.id, artwork_id=ids[slug])
+            stats["담기 추가" if created else "담기 유지"] += 1
     return stats
 
 
-def remove(session: Session, user_id: int) -> Counter:
+def remove(user_id: int) -> Counter:
     """시드가 넣은 감상글(날짜·본문이 같은 것)과 컬렉션(이름이 같은 것)만 지운다."""
     stats: Counter = Counter()
     for day, _, _, content in DIARY:
-        r = session.execute(delete(DiaryEntry).where(
-            DiaryEntry.user_id == user_id, DiaryEntry.entry_date == day, DiaryEntry.content == content))
-        stats["감상글 삭제"] += r.rowcount
-    r = session.execute(delete(Collection).where(
-        Collection.user_id == user_id, Collection.name.in_(list(COLLECTIONS))))
-    stats["컬렉션 삭제(담긴 작품 포함)"] += r.rowcount
+        stats["감상글 삭제"] += DiaryEntry.objects.filter(
+            user_id=user_id, entry_date=day, content=content).delete()[0]
+    collections = Collection.objects.filter(user_id=user_id, name__in=list(COLLECTIONS))
+    CollectionItem.objects.filter(collection__in=collections).delete()
+    stats["컬렉션 삭제(담긴 작품 포함)"] += collections.delete()[0]
     return stats
 
 
@@ -176,24 +172,20 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.email:
         email = args.email.strip().lower()  # users.email 은 소문자로 저장된다
-        where, label = User.email == email, f"email={email}"
+        where, label = {"email": email}, f"email={email}"
     else:
         uid = get_settings().dev_user_uid
-        where, label = User.firebase_uid == uid, f"firebase_uid={uid}"
-    with SessionLocal() as session:
-        user = session.scalar(select(User).where(where))
+        where, label = {"firebase_uid": uid}, f"firebase_uid={uid}"
+    with transaction.atomic():
+        user = User.objects.filter(**where).first()
         if user is None:
             raise SystemExit(f"{label} 계정이 없습니다. 그 계정으로 앱에 한 번 로그인해 계정을 만든 뒤 실행하세요.")
         print(f"대상: {user.email} (id {user.id})")
-        stats = remove(session, user.id) if args.remove else seed(session, user.id, artwork_ids(session))
+        stats = remove(user.id) if args.remove else seed(user.id, artwork_ids())
         for key, n in stats.items():
             print(f"  {key}: {n}")
-        if args.dry_run:
-            session.rollback()
-            print("[dry-run] 커밋하지 않았습니다.")
-        else:
-            session.commit()
-            print("커밋했습니다.")
+        transaction.set_rollback(args.dry_run)
+    print("[dry-run] 커밋하지 않았습니다." if args.dry_run else "커밋했습니다.")
     return 0
 
 

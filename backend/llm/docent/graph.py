@@ -15,7 +15,6 @@ import json
 from typing import Any, TypedDict
 
 from chromadb.errors import ChromaError
-from fastapi import HTTPException
 from httpx import HTTPError
 from langchain_core.exceptions import OutputParserException
 from langchain_core.output_parsers import JsonOutputParser
@@ -25,9 +24,11 @@ from langgraph.graph import END, START, StateGraph
 from openai import APIError
 from pydantic import ValidationError
 
-from app.core.config import get_settings
-from app.schemas.chat import ChatRequest, ChatResponse
-from app.services import catalog_service, mypage_service, recommendation_service
+from catalog import catalog_service, recommendation_service
+from chat.schemas import ChatRequest, ChatResponse
+from config.app_settings import get_settings
+from config.exceptions import HTTPException
+from library import mypage_service
 from llm.docent import scope as docent_scope
 from llm.docent.grounding import (
     NO_EVIDENCE_MESSAGE,
@@ -43,7 +44,6 @@ from llm.rag.retriever import retrieve
 
 
 class DocentState(TypedDict, total=False):
-    db: Any
     artwork_id: int
     body: ChatRequest
     user_id: int | None
@@ -60,8 +60,8 @@ def _refused(text: str) -> ChatResponse:
     return ChatResponse(answer=text, refused=True, sources=[])
 
 
-def instructions(db, user_id, explanation_style=None):
-    preference = mypage_service.preference(db, user_id) if user_id else None
+def instructions(user_id, explanation_style=None):
+    preference = mypage_service.preference(user_id) if user_id else None
     return grounding_instructions(preference, explanation_style)
 
 
@@ -111,9 +111,9 @@ def _personal_answer(works) -> str:
 
 
 def classify_node(state: DocentState) -> DocentState:
-    db, artwork_id, body = state["db"], state["artwork_id"], state["body"]
-    art = catalog_service.get_artwork(db, artwork_id)
-    route = classify_artwork(db, artwork_id, body.question)
+    artwork_id, body = state["artwork_id"], state["body"]
+    art = catalog_service.get_artwork(artwork_id)
+    route = classify_artwork(artwork_id, body.question)
     update: DocentState = {"art": art, "route": route}
     if route.kind in ("refuse", "other_artist"):
         update["response"] = _refused(refusal_message(route))
@@ -134,10 +134,10 @@ def scope_node(state: DocentState) -> DocentState:
 
 
 def recommend_node(state: DocentState) -> DocentState:
-    db, artwork_id, user_id = state["db"], state["artwork_id"], state.get("user_id")
+    artwork_id, user_id = state["artwork_id"], state.get("user_id")
     if state["route"].kind == "recommend_personal":
         if user_id is None:
-            works = recommendation_service.similar(db, artwork_id=artwork_id)
+            works = recommendation_service.similar(artwork_id=artwork_id)
             login_hint = "로그인 후 감상 기록이 쌓이면 더 정교한 추천을 받아볼 수 있어요."
             text = (
                 f"{login_hint} 현재 작품과 비슷한 작품을 먼저 만나보세요. {_titles(works)}"
@@ -145,15 +145,15 @@ def recommend_node(state: DocentState) -> DocentState:
                 else f"{login_hint} {_similar_answer(works)}"
             )
         else:
-            text = _personal_answer(recommendation_service.recommend_artworks(db, user_id=user_id))
+            text = _personal_answer(recommendation_service.recommend_artworks(user_id=user_id))
     else:
-        text = _similar_answer(recommendation_service.similar(db, artwork_id=artwork_id))
+        text = _similar_answer(recommendation_service.similar(artwork_id=artwork_id))
     return {"response": ChatResponse(answer=text, refused=False, sources=[])}
 
 
 def retrieve_node(state: DocentState) -> DocentState:
     try:
-        docs = retrieve(state["db"], state["artwork_id"], retrieval_question(state["body"]))[:40]
+        docs = retrieve(state["artwork_id"], retrieval_question(state["body"]))[:40]
     except (ChromaError, APIError, HTTPError, ConnectionError, TimeoutError, ValueError, RuntimeError):
         raise HTTPException(503, "작품 자료를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.") from None
     if not docs:
@@ -163,7 +163,7 @@ def retrieve_node(state: DocentState) -> DocentState:
 
 def generate_node(state: DocentState) -> DocentState:
     body = state["body"]
-    instruction = instructions(state["db"], state.get("user_id"), body.explanation_style)
+    instruction = instructions(state.get("user_id"), body.explanation_style)
     data = context(state["art"], body, state["docs"])
     if not state.get("stream"):
         return {"draft": generate(GroundedAnswer, instruction, data).model_dump()}
@@ -238,8 +238,8 @@ def build_graph():
 docent_graph = build_graph()
 
 
-def answer(db, artwork_id, body, user_id=None) -> ChatResponse:
+def answer(artwork_id, body, user_id=None) -> ChatResponse:
     state = docent_graph.invoke(
-        {"db": db, "artwork_id": artwork_id, "body": body, "user_id": user_id}
+        {"artwork_id": artwork_id, "body": body, "user_id": user_id}
     )
     return state["response"]

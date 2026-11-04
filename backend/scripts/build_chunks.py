@@ -20,11 +20,10 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
+from django.db import transaction
 
+from documents.models import Document, DocumentChunk
 from llm.clients import embedding_client
-from app.models import Document, DocumentChunk
 from llm.rag.chunking import Chunk, chunk_document
 
 DOCS_PER_EMBED_CALL = 20  # 이 문서 수만큼 청크를 모아 한 번에 임베딩하고 커밋한다
@@ -60,7 +59,6 @@ def plan(docs: list[dict], existing: dict[int, list[tuple[int, str, str]]], mode
 
 
 def write(
-    session: Session,
     todo: dict[int, list[Chunk]],
     model: str,
     embed: Callable[[list[str]], list[list[float]]],
@@ -73,38 +71,37 @@ def write(
         chunks = [c for doc_id in batch for c in todo[doc_id]]
         vectors = embed([c.content for c in chunks])  # API 를 먼저 불러서, 실패하면 DB 를 건드리지 않는다
         it = iter(vectors)
-        session.execute(delete(DocumentChunk).where(DocumentChunk.document_id.in_(batch)))
-        session.add_all(
-            DocumentChunk(
-                document_id=doc_id,
-                chunk_index=c.chunk_index,
-                content=c.content,
-                embedding=next(it),
-                embedding_model=model,
+        with transaction.atomic():
+            DocumentChunk.objects.filter(document_id__in=batch).delete()
+            DocumentChunk.objects.bulk_create(
+                DocumentChunk(
+                    document_id=doc_id,
+                    chunk_index=c.chunk_index,
+                    content=c.content,
+                    embedding=next(it),
+                    embedding_model=model,
+                )
+                for doc_id in batch
+                for c in todo[doc_id]
             )
-            for doc_id in batch
-            for c in todo[doc_id]
-        )
-        session.commit()
         written += len(chunks)
         print(f"  {start + len(batch)}/{len(ids)} 문서 · 청크 {written}개")
     return written
 
 
-def load(session: Session) -> tuple[list[dict], dict[int, list[tuple[int, str, str]]]]:
-    rows = session.execute(
-        select(Document.id, Document.doc_key, Document.title, Document.content)
-        .where(Document.needs_review.is_(False)).order_by(Document.doc_key)
+def load() -> tuple[list[dict], dict[int, list[tuple[int, str, str]]]]:
+    docs = list(
+        Document.objects.filter(needs_review=False)
+        .order_by("doc_key")
+        .values("id", "doc_key", "title", "content")
     )
-    docs = [{"id": r.id, "doc_key": r.doc_key, "title": r.title, "content": r.content} for r in rows]
     existing: dict[int, list[tuple[int, str, str]]] = defaultdict(list)
     # embedding 컬럼은 읽지 않는다 (청크마다 벡터 6KB 가 네트워크로 넘어옴)
-    for r in session.execute(
-        select(DocumentChunk.document_id, DocumentChunk.chunk_index, DocumentChunk.content, DocumentChunk.embedding_model)
-        .join(Document, Document.id == DocumentChunk.document_id)
-        .where(Document.needs_review.is_(False))
-    ):
-        existing[r.document_id].append((r.chunk_index, r.content, r.embedding_model))
+    rows = DocumentChunk.objects.filter(document__needs_review=False).values_list(
+        "document_id", "chunk_index", "content", "embedding_model"
+    )
+    for document_id, chunk_index, content, embedding_model in rows:
+        existing[document_id].append((chunk_index, content, embedding_model))
     return docs, existing
 
 
@@ -114,26 +111,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, help="처리할 문서 수 상한 (시험 실행용)")
     args = parser.parse_args(argv)
 
-    # import 할 때 DB 엔진을 만들므로 테스트에서 피하려고 여기서 가져옴
-    from app.db.session import SessionLocal
-
     model = embedding_client.model_name()
-    with SessionLocal() as session:
-        docs, existing = load(session)
-        if not docs:
-            print("documents 테이블이 비어 있습니다. 문서 적재(load_documents)를 먼저 실행하세요.")
-            return 1
-        p = plan(docs, existing, model)
-        todo = p.todo
-        if args.limit is not None:
-            todo = dict(list(todo.items())[: args.limit])
-        n_chunks = sum(len(v) for v in todo.values())
-        n_chars = sum(len(c.content) for v in todo.values() for c in v)
-        print(f"모델 {model} · 문서 {len(docs)}건: 최신 {len(p.skip)} · 새로 {len(p.new)} · 다시 만들기 {len(p.stale)}")
-        print(f"이번 실행: 문서 {len(todo)}건 · 청크 {n_chunks}개 · {n_chars:,}자")
-        if args.dry_run or not todo:
-            return 0
-        written = write(session, todo, model, embedding_client.embed_texts)
+    docs, existing = load()
+    if not docs:
+        print("documents 테이블이 비어 있습니다. 문서 적재(load_documents)를 먼저 실행하세요.")
+        return 1
+    p = plan(docs, existing, model)
+    todo = p.todo
+    if args.limit is not None:
+        todo = dict(list(todo.items())[: args.limit])
+    n_chunks = sum(len(v) for v in todo.values())
+    n_chars = sum(len(c.content) for v in todo.values() for c in v)
+    print(f"모델 {model} · 문서 {len(docs)}건: 최신 {len(p.skip)} · 새로 {len(p.new)} · 다시 만들기 {len(p.stale)}")
+    print(f"이번 실행: 문서 {len(todo)}건 · 청크 {n_chunks}개 · {n_chars:,}자")
+    if args.dry_run or not todo:
+        return 0
+    written = write(todo, model, embedding_client.embed_texts)
     print(f"완료: 청크 {written}개 기록")
     return 0
 

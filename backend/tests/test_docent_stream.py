@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.schemas.chat import ChatRequest, ChatTurn
+from chat.schemas import ChatRequest, ChatTurn
 from llm.docent import graph
 from llm.docent import stream as docent_stream
 from llm.rag.classifier import classify
@@ -77,7 +77,6 @@ def test_rag_stream_emits_deltas_and_verified_final_answer(monkeypatch, used_ids
         return [
             event
             async for event in docent_stream.answer_events(
-                None,
                 artwork_id=1,
                 body=ChatRequest(question="무엇인가요?", explanation_style="deep"),
                 user_id=3,
@@ -94,7 +93,7 @@ def test_rag_stream_emits_deltas_and_verified_final_answer(monkeypatch, used_ids
     else:
         assert events[-1][1].sources[0].document_id == 4
     assert saved[0]["response"] == events[-1][1]
-    assert styles == [(None, 3, "deep")]
+    assert styles == [(3, "deep")]
 
 
 @pytest.mark.parametrize("question", [
@@ -112,7 +111,7 @@ def test_clear_unrelated_stream_refuses_without_artwork_answer(monkeypatch, ques
         "get_artwork",
         lambda *args: SimpleNamespace(title="루엘에서 본 풍경", artist_name="모네"),
     )
-    classify_action = lambda _db, _artwork_id, question: classify(question, "claude-monet")
+    classify_action = lambda _artwork_id, question: classify(question, "claude-monet")
     monkeypatch.setattr(graph, "classify_artwork", classify_action)
     monkeypatch.setattr(graph, "classify_artwork", classify_action)
     monkeypatch.setattr(
@@ -130,7 +129,6 @@ def test_clear_unrelated_stream_refuses_without_artwork_answer(monkeypatch, ques
         return [
             event
             async for event in docent_stream.answer_events(
-                None,
                 artwork_id=1,
                 body=ChatRequest(question=question),
                 user_id=None,
@@ -162,7 +160,6 @@ def test_semantic_scope_gate_refuses_stream_before_retrieval(monkeypatch):
         return [
             event
             async for event in docent_stream.answer_events(
-                None,
                 artwork_id=1,
                 body=ChatRequest(question="이번 주 운동 루틴 알려줘"),
                 user_id=None,
@@ -198,7 +195,6 @@ def test_stream_answers_artist_identity_without_repeating_commentary(monkeypatch
     async def collect():
         return [
             event async for event in docent_stream.answer_events(
-                None,
                 artwork_id=1,
                 body=ChatRequest(question=question, history=history),
                 user_id=3,

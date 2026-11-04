@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.documents import Document
 
+from chat.schemas import ChatRequest, ChatTurn
 from llm.docent.grounding import (
     NO_EVIDENCE_MESSAGE,
     context,
@@ -12,7 +13,6 @@ from llm.docent.grounding import (
     retrieval_question,
     validate_response,
 )
-from app.schemas.chat import ChatRequest, ChatTurn
 
 
 def _doc(document_id: int = 4) -> Document:

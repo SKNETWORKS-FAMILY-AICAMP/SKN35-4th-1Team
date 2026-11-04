@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "backend-legacy",
+      "name": "backend",
       "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "--group", "legacy", "--directory", "backend", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8010"],
-      "port": 8010
+      "runtimeArgs": ["run", "--directory", "backend", "uvicorn", "config.asgi:application", "--host", "127.0.0.1", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd frontend && %USERPROFILE%\\flutter\\bin\\flutter.bat run -d web-server --web-hostname localhost --web-port 5000 --dart-define-from-file=.dart-defines.local.json"],
+      "port": 5000
     }
   ]
 }

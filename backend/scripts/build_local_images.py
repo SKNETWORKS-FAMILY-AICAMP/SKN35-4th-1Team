@@ -25,7 +25,7 @@ import time
 import httpx
 from PIL import Image
 
-from app.core import timeutil
+from config import timeutil
 from scripts.check_images import USER_AGENT
 from scripts.preprocess import ROOT, load_processed
 

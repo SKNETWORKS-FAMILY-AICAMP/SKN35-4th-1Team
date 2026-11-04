@@ -3,15 +3,15 @@
 import json
 from typing import Literal
 
-from fastapi import HTTPException
 from httpx import HTTPError
 from langchain_core.exceptions import OutputParserException
 from langchain_openai import ChatOpenAI
 from openai import APIError
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.core.config import get_settings
-from app.schemas.chat import ChatRequest
+from chat.schemas import ChatRequest
+from config.app_settings import get_settings
+from config.exceptions import HTTPException
 
 
 class ScopeDecision(BaseModel):

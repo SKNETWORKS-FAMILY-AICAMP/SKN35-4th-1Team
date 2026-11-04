@@ -16,12 +16,8 @@ import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from sqlalchemy import select
-from sqlalchemy.dialects.mysql import insert
-from sqlalchemy.orm import Session
-
+from catalog.models import Artwork, ArtworkEmbedding
 from llm.clients import embedding_client
-from app.models import Artist, ArtMovement, Artwork, ArtworkEmbedding
 
 ROWS_PER_INSERT = 100
 
@@ -50,29 +46,20 @@ def artwork_text(w: ArtworkRow, with_artist: bool = False) -> str:
     return "\n".join(line for line in lines if line)
 
 
-def load(session: Session) -> list[ArtworkRow]:
+def load() -> list[ArtworkRow]:
     """작품의 사조가 비어 있으면 작가의 대표 사조를 쓴다 (전처리 규칙과 같음)."""
-    own = ArtMovement.__table__.alias("own_movement")
-    artist_movement = ArtMovement.__table__.alias("artist_movement")
-    rows = session.execute(
-        select(
-            Artwork.id, Artwork.title, Artwork.title_en, Artist.name.label("artist_name"),
-            own.c.name.label("own_movement"), artist_movement.c.name.label("artist_movement"),
-            Artwork.medium, Artwork.description,
-        )
-        .join(Artist, Artist.id == Artwork.artist_id)
-        .outerjoin(own, own.c.id == Artwork.movement_id)
-        .outerjoin(artist_movement, artist_movement.c.id == Artist.movement_id)
-        .order_by(Artwork.id)
-    )
+    artworks = Artwork.objects.select_related("artist__movement", "movement").order_by("id")
     return [
-        ArtworkRow(r.id, r.title, r.title_en, r.artist_name, r.own_movement or r.artist_movement, r.medium, r.description)
-        for r in rows
+        ArtworkRow(
+            a.id, a.title, a.title_en, a.artist.name,
+            (a.movement or a.artist.movement).name if a.movement or a.artist.movement else None,
+            a.medium, a.description,
+        )
+        for a in artworks
     ]
 
 
 def write(
-    session: Session,
     artworks: list[ArtworkRow],
     model: str,
     embed: Callable[[list[str]], list[list[float]]],
@@ -81,16 +68,15 @@ def write(
     """전부 임베딩한 뒤 upsert 하고 한 번 커밋한다. API 가 실패하면 DB 를 건드리지 않는다."""
     vectors = embed([artwork_text(w, with_artist) for w in artworks])
     rows = [
-        {"artwork_id": w.id, "embedding": v, "embedding_model": model}
+        ArtworkEmbedding(artwork_id=w.id, embedding=v, embedding_model=model)
         for w, v in zip(artworks, vectors, strict=True)
     ]
-    table = ArtworkEmbedding.__table__
-    for start in range(0, len(rows), ROWS_PER_INSERT):
-        stmt = insert(table).values(rows[start : start + ROWS_PER_INSERT])
-        session.execute(
-            stmt.on_duplicate_key_update(embedding=stmt.inserted.embedding, embedding_model=stmt.inserted.embedding_model)
-        )
-    session.commit()
+    ArtworkEmbedding.objects.bulk_create(
+        rows,
+        batch_size=ROWS_PER_INSERT,
+        update_conflicts=True,
+        update_fields=["embedding", "embedding_model", "updated_at"],
+    )
     return len(rows)
 
 
@@ -100,22 +86,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--with-artist", action="store_true", help="작가 이름을 임베딩 글에 넣음")
     args = parser.parse_args(argv)
 
-    # import 할 때 DB 엔진을 만들므로 테스트에서 피하려고 여기서 가져옴
-    from app.db.session import SessionLocal
-
     model = embedding_client.model_name()
-    with SessionLocal() as session:
-        artworks = load(session)
-        if not artworks:
-            print("artworks 테이블이 비어 있습니다. 카탈로그 적재(load_catalog)를 먼저 실행하세요.")
-            return 1
-        texts = [artwork_text(w, args.with_artist) for w in artworks]
-        print(f"모델 {model} · 작품 {len(artworks)}점 · {sum(map(len, texts)):,}자 · 작가 이름 {'포함' if args.with_artist else '제외'}")
-        print(f"설명 없음 {sum(not w.description for w in artworks)}점 · 사조 없음 {sum(not w.movement_name for w in artworks)}점")
-        if args.dry_run:
-            print("--- 예시 ---\n" + texts[0])
-            return 0
-        written = write(session, artworks, model, embedding_client.embed_texts, args.with_artist)
+    artworks = load()
+    if not artworks:
+        print("artworks 테이블이 비어 있습니다. 카탈로그 적재(load_catalog)를 먼저 실행하세요.")
+        return 1
+    texts = [artwork_text(w, args.with_artist) for w in artworks]
+    print(f"모델 {model} · 작품 {len(artworks)}점 · {sum(map(len, texts)):,}자 · 작가 이름 {'포함' if args.with_artist else '제외'}")
+    print(f"설명 없음 {sum(not w.description for w in artworks)}점 · 사조 없음 {sum(not w.movement_name for w in artworks)}점")
+    if args.dry_run:
+        print("--- 예시 ---\n" + texts[0])
+        return 0
+    written = write(artworks, model, embedding_client.embed_texts, args.with_artist)
     print(f"완료: 작품 벡터 {written}행 기록 (추가·갱신)")
     return 0
 

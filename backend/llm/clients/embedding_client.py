@@ -8,8 +8,8 @@ from functools import lru_cache
 
 from langchain_openai import OpenAIEmbeddings
 
-from app.core.config import get_settings
-from app.models.base import EMBEDDING_DIMENSION
+from catalog.models import EMBEDDING_DIMENSION
+from config.app_settings import get_settings
 
 
 def model_name() -> str:

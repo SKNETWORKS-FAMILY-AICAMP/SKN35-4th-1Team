@@ -5,19 +5,17 @@ Run from ``backend/`` with::
     uv run python -m scripts.check_db
 """
 
-from sqlalchemy import inspect, text
-
-from app.db.session import engine
-from app.models import Base
+from django.apps import apps
+from django.db import connection
 
 
 def main() -> None:
-    expected_tables = set(Base.metadata.tables)
+    expected_tables = {model._meta.db_table for model in apps.get_models()}
 
-    with engine.connect() as connection:
-        database = connection.execute(text("SELECT DATABASE()")).scalar_one()
-        version = connection.execute(text("SELECT VERSION()")).scalar_one()
-        actual_tables = set(inspect(connection).get_table_names())
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT DATABASE(), VERSION()")
+        database, version = cursor.fetchone()
+    actual_tables = set(connection.introspection.table_names())
 
     missing_tables = sorted(expected_tables - actual_tables)
 
