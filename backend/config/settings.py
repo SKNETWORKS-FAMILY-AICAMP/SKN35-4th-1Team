@@ -138,7 +138,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = 'static/'
+# nginx가 /admin 아래만 Django로 넘기므로 Admin 정적 파일도 그 아래에 둔다.
+STATIC_URL = '/admin/static/'
 
 
 # Email

@@ -8,7 +8,6 @@ Django는 lifespan과 ASGI 앱 마운트를 지원하지 않아서 바깥에 Sta
 import os
 from contextlib import asynccontextmanager
 
-from django.conf import settings as django_settings
 from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
 from django.core.asgi import get_asgi_application
 from starlette.applications import Starlette
@@ -18,9 +17,8 @@ from starlette.routing import Mount
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-django_app = get_asgi_application()
-if django_settings.DEBUG:
-    django_app = ASGIStaticFilesHandler(django_app)
+# 정적 파일은 Admin 화면용뿐이라 collectstatic 없이 여기서 바로 내보낸다.
+django_app = ASGIStaticFilesHandler(get_asgi_application())
 
 # MCP 코드는 Django 모델을 쓰므로 앱 초기화가 끝난 뒤에 불러온다.
 from config.app_settings import get_settings
