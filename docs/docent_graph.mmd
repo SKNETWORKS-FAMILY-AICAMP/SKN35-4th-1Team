@@ -1,0 +1,28 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	classify(classify)
+	scope(scope)
+	recommend(recommend)
+	retrieve(retrieve)
+	generate(generate)
+	validate(validate)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> classify;
+	classify -.-> __end__;
+	classify -.-> scope;
+	generate --> validate;
+	retrieve -.-> __end__;
+	retrieve -.-> generate;
+	scope -.-> __end__;
+	scope -.-> recommend;
+	scope -.-> retrieve;
+	recommend --> __end__;
+	validate --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

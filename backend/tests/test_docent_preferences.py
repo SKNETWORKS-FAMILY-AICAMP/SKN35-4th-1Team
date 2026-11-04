@@ -6,7 +6,7 @@ import pytest
 from fastapi import HTTPException
 from langchain_core.documents import Document
 
-from llm.docent import service as docent
+from llm.docent import graph as docent
 from llm.rag.classifier import classify
 from app.schemas.chat import ChatRequest, ChatTurn
 

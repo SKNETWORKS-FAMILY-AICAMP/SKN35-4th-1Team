@@ -5,9 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from app.schemas.chat import ChatRequest, ChatTurn
+from llm.docent import graph
 from llm.docent import stream as docent_stream
 from llm.rag.classifier import classify
-from app.schemas.chat import ChatRequest, ChatTurn
 
 
 @pytest.mark.parametrize("used_ids, refused", [([4], False), ([999], True), ([], True)])
@@ -23,24 +24,24 @@ def test_rag_stream_emits_deltas_and_verified_final_answer(monkeypatch, used_ids
     }
     doc = SimpleNamespace(metadata=metadata, page_content="확인된 작품 자료")
     monkeypatch.setattr(
-        docent_stream.catalog_service,
+        graph.catalog_service,
         "get_artwork",
         lambda *args: SimpleNamespace(title="작품", artist_name="작가"),
     )
     monkeypatch.setattr(
-        docent_stream,
+        graph,
         "classify_artwork",
         lambda *args: SimpleNamespace(kind="rag"),
     )
-    monkeypatch.setattr(docent_stream.docent_scope, "is_artwork_request", lambda *args: True)
-    monkeypatch.setattr(docent_stream, "retrieve", lambda *args: [doc])
+    monkeypatch.setattr(graph.docent_scope, "is_artwork_request", lambda *args: True)
+    monkeypatch.setattr(graph, "retrieve", lambda *args: [doc])
     monkeypatch.setattr(
-        docent_stream, "get_settings",
+        graph, "get_settings",
         lambda: SimpleNamespace(openai_api_key="test", assistant_model="mock"),
     )
     styles = []
     monkeypatch.setattr(
-        docent_stream.docent_service,
+        graph,
         "instructions",
         lambda *args: styles.append(args) or "",
     )
@@ -65,12 +66,12 @@ def test_rag_stream_emits_deltas_and_verified_final_answer(monkeypatch, used_ids
         def __or__(self, parser):
             return self
 
-        async def astream(self, messages):
+        def stream(self, messages):
             yield {"answer": "근거"}
             yield {"answer": "근거 있는 답변", "refused": False, "used_document_ids": used_ids}
 
-    monkeypatch.setattr(docent_stream, "JsonOutputParser", FakeParser)
-    monkeypatch.setattr(docent_stream, "ChatOpenAI", FakeModel)
+    monkeypatch.setattr(graph, "JsonOutputParser", FakeParser)
+    monkeypatch.setattr(graph, "ChatOpenAI", FakeModel)
 
     async def collect():
         return [
@@ -107,20 +108,20 @@ def test_rag_stream_emits_deltas_and_verified_final_answer(monkeypatch, used_ids
 ])
 def test_clear_unrelated_stream_refuses_without_artwork_answer(monkeypatch, question):
     monkeypatch.setattr(
-        docent_stream.catalog_service,
+        graph.catalog_service,
         "get_artwork",
         lambda *args: SimpleNamespace(title="루엘에서 본 풍경", artist_name="모네"),
     )
     classify_action = lambda _db, _artwork_id, question: classify(question, "claude-monet")
-    monkeypatch.setattr(docent_stream, "classify_artwork", classify_action)
-    monkeypatch.setattr(docent_stream.docent_service, "classify_artwork", classify_action)
+    monkeypatch.setattr(graph, "classify_artwork", classify_action)
+    monkeypatch.setattr(graph, "classify_artwork", classify_action)
     monkeypatch.setattr(
-        docent_stream.docent_service,
+        graph,
         "retrieve",
         lambda *args: pytest.fail("앱 기능 요청에 자료 검색"),
     )
     monkeypatch.setattr(
-        docent_stream.docent_service,
+        graph,
         "generate",
         lambda *args: pytest.fail("앱 기능 요청에 LLM 호출"),
     )
@@ -145,17 +146,17 @@ def test_clear_unrelated_stream_refuses_without_artwork_answer(monkeypatch, ques
 
 def test_semantic_scope_gate_refuses_stream_before_retrieval(monkeypatch):
     monkeypatch.setattr(
-        docent_stream.catalog_service,
+        graph.catalog_service,
         "get_artwork",
         lambda *args: SimpleNamespace(title="대수욕도", artist_name="세잔"),
     )
     monkeypatch.setattr(
-        docent_stream,
+        graph,
         "classify_artwork",
         lambda *args: classify("이번 주 운동 루틴 알려줘", "paul-cezanne"),
     )
-    monkeypatch.setattr(docent_stream.docent_scope, "is_artwork_request", lambda *args: False)
-    monkeypatch.setattr(docent_stream, "retrieve", lambda *args: pytest.fail("범위 밖 질문에 자료 검색"))
+    monkeypatch.setattr(graph.docent_scope, "is_artwork_request", lambda *args: False)
+    monkeypatch.setattr(graph, "retrieve", lambda *args: pytest.fail("범위 밖 질문에 자료 검색"))
 
     async def collect():
         return [
@@ -184,13 +185,13 @@ def test_semantic_scope_gate_refuses_stream_before_retrieval(monkeypatch):
 ])
 def test_stream_answers_artist_identity_without_repeating_commentary(monkeypatch, question, history, expected):
     monkeypatch.setattr(
-        docent_stream.catalog_service,
+        graph.catalog_service,
         "get_artwork",
         lambda *a: SimpleNamespace(title="푸르빌의 절벽 산책로", artist_name="클로드 모네"),
     )
-    monkeypatch.setattr(docent_stream, "classify_artwork", lambda *a: SimpleNamespace(kind="rag"))
-    monkeypatch.setattr(docent_stream.docent_scope, "is_artwork_request", lambda *a: pytest.fail("명확한 단답에 범위 모델 호출"))
-    monkeypatch.setattr(docent_stream, "retrieve", lambda *a: pytest.fail("명확한 단답에 검색 호출"))
+    monkeypatch.setattr(graph, "classify_artwork", lambda *a: SimpleNamespace(kind="rag"))
+    monkeypatch.setattr(graph.docent_scope, "is_artwork_request", lambda *a: pytest.fail("명확한 단답에 범위 모델 호출"))
+    monkeypatch.setattr(graph, "retrieve", lambda *a: pytest.fail("명확한 단답에 검색 호출"))
     saved = []
     monkeypatch.setattr(docent_stream.chat_service, "save_exchange", lambda *a, **kw: saved.append(kw))
 

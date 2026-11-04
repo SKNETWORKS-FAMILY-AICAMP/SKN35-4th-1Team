@@ -17,7 +17,6 @@ through the regular collection REST calls.
 
 from sqlalchemy import select
 
-from llm.docent.grounding import is_non_engagement_question
 from app.models import ChatMessage, ChatRole, Collection, CollectionItem
 from app.repositories import chat_repository
 from app.schemas.chat import ChatRequest, ChatResponse
@@ -26,6 +25,7 @@ from app.schemas.mypage import (
     CollectionSuggestion,
 )
 from app.services import catalog_service
+from llm.docent.grounding import is_non_engagement_question
 
 MIN_QUESTIONS = 3  # the third question about one artwork counts as interest
 MAX_CHOICES = 6
