@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  backend:
+    name: 백엔드 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: 의존성 설치
+        run: uv sync --frozen
+      - name: pytest
+        working-directory: backend
+        run: uv run pytest -q
+      # 남은 항목이 정리되면 continue-on-error 를 지운다.
+      - name: ruff
+        continue-on-error: true
+        run: uv run ruff check backend
+
+  docker:
+    name: 배포 이미지 빌드
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 백엔드 이미지 빌드
+        run: docker build -f infra/Dockerfile.backend -t docentalk-web .
+      - name: nginx 설정 검사
+        run: >
+          docker run --rm --add-host web:127.0.0.1
+          -v "$PWD/infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro"
+          nginx:1.27-alpine nginx -t
