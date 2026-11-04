@@ -12,7 +12,9 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
+import certifi
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -81,10 +83,23 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
+# TiDB Cloud. 3차와 같은 TIDB_* 이름을 쓰고, TIDB_DATABASE_URL 이 있으면 그걸 우선한다.
+_tidb_url = urlsplit(os.environ.get('TIDB_DATABASE_URL', ''))
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django_tidb',
+        'HOST': _tidb_url.hostname or os.environ.get('TIDB_HOST', ''),
+        'PORT': _tidb_url.port or int(os.environ.get('TIDB_PORT', 4000)),
+        'USER': unquote(_tidb_url.username or '') or os.environ.get('TIDB_USERNAME', ''),
+        'PASSWORD': unquote(_tidb_url.password or '') or os.environ.get('TIDB_PASSWORD', ''),
+        'NAME': _tidb_url.path.lstrip('/') or os.environ.get('TIDB_DATABASE', ''),
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            # TiDB Cloud 는 TLS 필수. 인증서와 호스트 이름까지 확인한다.
+            'ssl': {'ca': certifi.where()},
+            'ssl_verify_cert': True,
+            'ssl_verify_identity': True,
+        },
     }
 }
 

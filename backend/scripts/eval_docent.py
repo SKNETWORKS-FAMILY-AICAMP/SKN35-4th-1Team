@@ -19,7 +19,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.core.config import get_settings
-from llm.docent import service as docent_service
+from llm.docent import graph as docent_service
 from app.models import Artwork
 from llm.rag.prompts import PROMPT_VERSION
 from llm.rag.retriever import COMPARISON_K, OWN_K, TOP_K

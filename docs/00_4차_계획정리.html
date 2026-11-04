@@ -53,7 +53,7 @@
 
 <h3>① 기획 · 요구사항 정의서</h3>
 <ul>
-<li><b>범위 정하기</b>: 3차 기능(소셜, 일기, MCP 등)을 다 옮기면 일이 너무 많아요. 핵심인 <b>도슨트 채팅, 출처 표시, 작품 목록·상세, 로그인, 컬렉션</b>을 먼저 하고, 나머지는 여유가 있으면 해요.</li>
+<li><b>범위</b>: 3차 기능을 <b>전부</b> 가져와요(도슨트 채팅, 출처, 작품·작가·사조, 로그인, 좋아요·컬렉션, 일기, 피드·팔로우, 추천, AI 컬렉션, MCP). 옮기는 순서는 도슨트 채팅 → 카탈로그 → 로그인 → 서재·컬렉션 → 소셜 순으로 해요.</li>
 <li>기능·비기능 요구사항에 ID(FR-01, NFR-01 …)를 붙이고 우선순위를 매겨요. 3차 README의 기능 표와 <code>PLAN.md</code>에서 시작하면 돼요.</li>
 <li>4차에서 새로 넣는 것(LangGraph, 하이브리드 검색, AWS 배포)은 비기능 요구사항(성능·정확도·가용성)으로 정리해요.</li>
 </ul>
@@ -70,6 +70,7 @@
 <li>기능별로 앱을 나눠요: <code>accounts</code>, <code>catalog</code>, <code>chat</code>, <code>library</code>, <code>documents</code>, <code>llm</code></li>
 <li><b>Django Ninja</b>를 쓰면 FastAPI와 문법이 거의 같아서 <code>api/routes/</code>를 쉽게 옮길 수 있어요. 다른 기수도 이 방식을 썼어요.</li>
 <li>SQLAlchemy 모델(<code>models/</code>)을 Django ORM으로, Alembic을 Django migration으로 바꿔요. 지금 TiDB 테이블을 그대로 쓰려면 <code>inspectdb</code>로 모델을 뽑아 오면 빨라요.</li>
+<li><b>DB는 TiDB를 계속 써요.</b> TiDB는 MySQL과 호환돼서 Django에서 쓸 수 있어요. 공식 백엔드 <code>django-tidb</code>(벡터 컬럼용 <code>VectorField</code> 포함)를 써요. <code>django-tidb</code> 6.0은 Django 6.0까지 지원하니까 Django 버전을 6.0으로 맞춰요.</li>
 <li><code>rag/</code>, <code>docent/</code>, <code>clients/</code>, <code>services/</code>는 거의 그대로 옮겨요. DB 접근만 Django ORM에 맞게 고쳐요.</li>
 <li>스트리밍 답변(SSE)은 <code>StreamingHttpResponse</code>로 유지해요. 이벤트 모양(<code>token</code>, <code>replace</code>, <code>done</code>)은 3차와 같게 둬요.</li>
 <li>Django Admin으로 작품·문서를 관리하면 관리자 화면을 따로 만들지 않아도 돼요.</li>

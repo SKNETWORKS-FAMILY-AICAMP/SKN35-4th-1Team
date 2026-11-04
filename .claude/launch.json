@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend-legacy",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--group", "legacy", "--directory", "backend", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8010"],
+      "port": 8010
+    }
+  ]
+}

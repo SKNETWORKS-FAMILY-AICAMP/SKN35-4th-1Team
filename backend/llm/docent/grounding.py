@@ -7,8 +7,8 @@ from collections.abc import Sequence
 from langchain_core.documents import Document
 from pydantic import BaseModel, ConfigDict, Field
 
-from llm.rag.prompts import STYLE_RULES, build_system_prompt, parse_grounded_draft
 from app.schemas.chat import ChatRequest, ChatResponse, Source
+from llm.rag.prompts import STYLE_RULES, build_system_prompt, parse_grounded_draft
 
 NO_EVIDENCE_MESSAGE = (
     "현재 검수된 자료로는 정확한 확인이 어려워요. "

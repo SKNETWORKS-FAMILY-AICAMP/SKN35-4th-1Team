@@ -18,7 +18,8 @@ cd backend && uv run python manage.py runserver
 |---|---|---|
 | `backend/config/` | Django 설정, Ninja API (`api.py`) | 새로 만듦 |
 | `backend/accounts` `catalog` `chat` `library` `documents` | Django 앱 | 빈 앱 |
-| `backend/llm/{rag,docent,clients}` | 3차 RAG·도슨트·외부 연결 코드 | 복사함. `app.models`·`app.schemas`·`app.db`·`app.core`·FastAPI import를 Django로 옮겨야 함 |
+| `backend/llm/{rag,docent,clients}` | 3차 RAG·도슨트·외부 연결 코드 | 복사함. LangGraph로 바꿀 곳 |
+| `backend/app/` | 3차 FastAPI 나머지 (`api` `core` `db` `models` `schemas` `services` `repositories` `mcp`) | 복사함. Django 앱으로 하나씩 옮기고, 다 옮기면 폴더 삭제 |
 | `backend/scripts/`, `backend/tests/` | 3차 전처리·평가 스크립트, 평가 문항·테스트 | 복사함. 위와 같은 import 정리 필요 |
 | `frontend/` | 3차 Flutter Web (`lib`, `web`, `assets`, `public`) | 복사함. `API_BASE_URL`을 Django 주소로 바꿔서 빌드 |
 | `data/` | 3차 수집·전처리 데이터 | 복사함 |

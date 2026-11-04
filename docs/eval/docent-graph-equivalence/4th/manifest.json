@@ -1,0 +1,24 @@
+{
+  "ran_at_utc": "2026-11-03T12:41:24.086560+00:00",
+  "git_commit": "4dc54ed0b059b30913496aaf932ace1be0a305f8",
+  "working_tree_dirty": true,
+  "prompt_version": "docent-grounded-1.5.1",
+  "prompt_sha256": "c4e45a41201d6eda5d5a34fa71ef59e1f491270bf726bffc619cc2cf35f43c23",
+  "model": "gpt-4.1-mini",
+  "generation_temperature": 0.3,
+  "embedding_model": "text-embedding-3-small",
+  "chroma_chunks_collection": "chunks",
+  "retrieval": {
+    "top_k": 5,
+    "own_k": 3,
+    "comparison_k": 2
+  },
+  "data_success_sha256": "2906b4b49e4423cb38d57c729ee669fa427c7abe1c12889de358eea74a1c2e67",
+  "question_sha256": {
+    "general": "932ce213539a9f57e260171653e73d3551673a2ec66e906f02c41d3a068838fc",
+    "accuracy": "0299a8dae95ac4c7fe2580b8efbf743b89f89052fce8118647647768bf0f097e"
+  },
+  "case_count": 39,
+  "execution_errors": 0,
+  "human_review_status": "pending"
+}

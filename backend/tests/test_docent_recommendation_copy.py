@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from llm.docent import service as docent
+from llm.docent import graph as docent
 from app.schemas.chat import ChatRequest
 
 
