@@ -195,7 +195,7 @@ def generate_node(state: DocentState) -> DocentState:
 
 def validate_node(state: DocentState) -> DocentState:
     try:
-        return {"response": validate_response(state.get("draft"), state["docs"])}
+        return {"response": validate_response(state.get("draft"), state["docs"], state["body"].question)}
     except (ValueError, AttributeError, TypeError):
         return {"response": _refused(NO_EVIDENCE_MESSAGE)}
 
