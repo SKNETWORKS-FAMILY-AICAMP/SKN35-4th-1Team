@@ -194,14 +194,14 @@ def test_approved_artist_is_routed_as_other_artist():
     ("이 그림의 빛은 어디서 와?", False, "rag"),
 ])
 def test_comparison_needs_a_document_covering_the_other_artist(monkeypatch, question, covered, kind):
+    from documents import document_repository as repo
     from llm.rag import classifier
-    from app.repositories import document_repository as repo
 
     asked = []
-    monkeypatch.setattr(repo, "artwork_artist_slug", lambda s, a: "claude-monet")
-    monkeypatch.setattr(repo, "scope_document_ids", lambda s, a: [1, 2])
-    monkeypatch.setattr(repo, "comparison_covers", lambda s, ids, slugs: asked.append(slugs) or covered)
-    route = classifier.classify_artwork(None, 1, question)
+    monkeypatch.setattr(repo, "artwork_artist_slug", lambda a: "claude-monet")
+    monkeypatch.setattr(repo, "scope_document_ids", lambda a: [1, 2])
+    monkeypatch.setattr(repo, "comparison_covers", lambda ids, slugs: asked.append(slugs) or covered)
+    route = classifier.classify_artwork(1, question)
     assert route.kind == kind
     if kind == "refuse":
         assert asked == [("paul-cezanne",)] and route.reason == "no_comparison_source"

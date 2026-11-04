@@ -25,14 +25,14 @@ import httpx
 import numpy as np
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.orm import undefer
 
+from catalog.models import Artwork
+from config.app_settings import get_settings
+from documents import document_repository as document_repo
+from documents.models import Document, DocumentChunk
 from llm.clients import embedding_client
-from app.core.config import get_settings
-from app.models import Artwork, Document, DocumentChunk
+from llm.rag.hybrid import hybrid_rank
 from llm.rag.retriever import retrieve
-from app.repositories import document_repository as document_repo
 
 QUESTIONS = Path(__file__).resolve().parents[1] / "tests" / "questions"
 DEFAULT_URL = "https://skn35-3rd-1team-production.up.railway.app"
@@ -150,13 +150,12 @@ def run_chat(base_url: str, cases: list[dict], artwork_ids: dict[str, int]) -> l
     return rows
 
 
+def _cosine(row: ChunkRow, vector: np.ndarray) -> float:
+    return 1 - float(np.dot(vector, row.vector) / (np.linalg.norm(vector) * np.linalg.norm(row.vector)))
+
+
 def _cosine_rank(rows: list[ChunkRow], vector: np.ndarray, limit: int = 5) -> list[ChunkRow]:
-    q_norm = np.linalg.norm(vector)
-    scored = [
-        (1 - float(np.dot(vector, row.vector) / (q_norm * np.linalg.norm(row.vector))), row)
-        for row in rows
-    ]
-    return [row for _, row in sorted(scored, key=lambda item: item[0])[:limit]]
+    return sorted(rows, key=lambda row: _cosine(row, vector))[:limit]
 
 
 def retrieval_metrics(ranked: list[tuple[str, int]], relevant: set[tuple[str, int]], k: int = 5) -> dict:
@@ -185,24 +184,22 @@ def _overlapped(rows: list[ChunkRow], chars: int) -> list[str]:
     return texts
 
 
-def run_overlap(session, cases: list[dict], truth: dict[str, set[tuple[str, int]]]) -> dict:
+def run_overlap(cases: list[dict], truth: dict[str, set[tuple[str, int]]]) -> dict:
     selected = {case["id"]: case for case in cases if case["id"] in truth}
-    artwork_ids = dict(session.execute(select(Artwork.slug, Artwork.id)).all())
+    artwork_ids = dict(Artwork.objects.values_list("slug", "id"))
     scopes = {
-        case_id: set(document_repo.scope_document_ids(session, artwork_ids[case["artwork_slug"]]))
+        case_id: set(document_repo.scope_document_ids(artwork_ids[case["artwork_slug"]]))
         for case_id, case in selected.items()
     }
     document_ids = set().union(*scopes.values())
-    db_rows = session.execute(
-        select(DocumentChunk, Document.doc_key)
-        .join(Document, Document.id == DocumentChunk.document_id)
-        .where(Document.id.in_(document_ids), Document.needs_review.is_(False))
-        .options(undefer(DocumentChunk.embedding))
-        .order_by(DocumentChunk.document_id, DocumentChunk.chunk_index)
+    db_rows = (
+        DocumentChunk.objects.filter(document_id__in=document_ids, document__needs_review=False)
+        .select_related("document")
+        .order_by("document_id", "chunk_index")
     )
     rows = [
-        ChunkRow(chunk.document_id, doc_key, chunk.chunk_index, chunk.content, np.asarray(chunk.embedding, dtype=float))
-        for chunk, doc_key in db_rows
+        ChunkRow(chunk.document_id, chunk.document.doc_key, chunk.chunk_index, chunk.content, np.asarray(chunk.embedding, dtype=float))
+        for chunk in db_rows
     ]
     questions = [selected[case_id]["question"] for case_id in truth]
     q_vectors = [np.asarray(v, dtype=float) for v in embedding_client.embed_texts(questions)]
@@ -217,28 +214,41 @@ def run_overlap(session, cases: list[dict], truth: dict[str, set[tuple[str, int]
             ChunkRow(row.document_id, row.doc_key, row.chunk_index, row.content, vector)
             for row, vector in zip(rows, vectors, strict=True)
         ]
-        per_case = []
-        for (case_id, relevant), q_vector in zip(truth.items(), q_vectors, strict=True):
+        # 벡터 순위는 3차와 비교하려고 모든 overlap 에서 남기고, 운영 검색기와 같은 하이브리드 순위는 현재 청크(0자)에서 잰다.
+        rankings = ("vector", "hybrid") if overlap == 0 else ("vector",)
+        per_case = {ranking: [] for ranking in rankings}
+        for (case_id, relevant), question, q_vector in zip(truth.items(), questions, q_vectors, strict=True):
             candidates = [row for row in configured if row.document_id in scopes[case_id]]
-            ranked = _cosine_rank(candidates, q_vector)
-            score = retrieval_metrics([row.key for row in ranked], relevant)
-            per_case.append({
-                "id": case_id,
-                "targets": [{"doc_key": key[0], "chunk_index": key[1]} for key in sorted(relevant)],
-                "top5": [{"doc_key": row.doc_key, "chunk_index": row.chunk_index} for row in ranked],
-                **score,
+            ordered = {"vector": _cosine_rank(candidates, q_vector)}
+            if "hybrid" in rankings:
+                ordered["hybrid"] = hybrid_rank(
+                    candidates, question, text=lambda row: row.content, distance=lambda row, q=q_vector: _cosine(row, q)
+                )[:5]
+            for ranking in rankings:
+                ranked = ordered[ranking]
+                per_case[ranking].append({
+                    "id": case_id,
+                    "targets": [{"doc_key": key[0], "chunk_index": key[1]} for key in sorted(relevant)],
+                    "top5": [{"doc_key": row.doc_key, "chunk_index": row.chunk_index} for row in ranked],
+                    **retrieval_metrics([row.key for row in ranked], relevant),
+                })
+        for ranking in rankings:
+            cases_ = per_case[ranking]
+            settings.append({
+                "overlap_chars": overlap,
+                "ranking": ranking,
+                "questions": len(cases_),
+                "hit_at_5": round(mean(row["hit_at_5"] for row in cases_), 4),
+                "recall_at_5": round(mean(row["recall_at_5"] for row in cases_), 4),
+                "mrr": round(mean(row["reciprocal_rank"] for row in cases_), 4),
+                "ndcg_at_5": round(mean(row["ndcg_at_5"] for row in cases_), 4),
+                "rows": cases_,
             })
-        settings.append({
-            "overlap_chars": overlap,
-            "questions": len(per_case),
-            "hit_at_5": round(mean(row["hit_at_5"] for row in per_case), 4),
-            "recall_at_5": round(mean(row["recall_at_5"] for row in per_case), 4),
-            "mrr": round(mean(row["reciprocal_rank"] for row in per_case), 4),
-            "ndcg_at_5": round(mean(row["ndcg_at_5"] for row in per_case), 4),
-            "rows": per_case,
-        })
     return {
-        "method": "현재 청크에 직전 청크 끝 0/50/100자를 붙여 메모리에서 재임베딩한 raw cosine Top-5 비교. TiDB·Chroma 쓰기 없음.",
+        "method": (
+            "현재 청크에 직전 청크 끝 0/50/100자를 붙여 메모리에서 재임베딩한 raw cosine Top-5 비교와, "
+            "현재 청크의 하이브리드(벡터 + 한국어 BM25, RRF) Top-5. 자리 보장 규칙 제외. TiDB·Chroma 쓰기 없음."
+        ),
         "settings": settings,
     }
 
@@ -354,22 +364,19 @@ def main(argv: list[str] | None = None) -> int:
     cases = load_cases()
     truth = load_chunk_truth()
 
-    from app.db.session import SessionLocal
-
-    with SessionLocal() as session:
-        artwork_ids = dict(session.execute(select(Artwork.slug, Artwork.id)).all())
-        missing = sorted({case["artwork_slug"] for case in cases} - artwork_ids.keys())
-        if missing:
-            raise ValueError(f"TiDB에 작품이 없습니다: {missing}")
-        document_keys = dict(session.execute(select(Document.id, Document.doc_key)).all())
-        rows = run_chat(args.base_url.rstrip("/"), cases, artwork_ids)
-        add_source_checks(rows, document_keys)
-        contexts = {}
-        for n, case in enumerate((case for case in cases if not case["expected"]["refused"]), 1):
-            docs = retrieve(session, artwork_ids[case["artwork_slug"]], case["question"])
-            contexts[case["id"]] = [doc.page_content for doc in docs]
-            print(f"CONTEXT {n:02} {case['id']}: {len(docs)} chunks")
-        overlap = run_overlap(session, cases, truth)
+    artwork_ids = dict(Artwork.objects.values_list("slug", "id"))
+    missing = sorted({case["artwork_slug"] for case in cases} - artwork_ids.keys())
+    if missing:
+        raise ValueError(f"TiDB에 작품이 없습니다: {missing}")
+    document_keys = dict(Document.objects.values_list("id", "doc_key"))
+    rows = run_chat(args.base_url.rstrip("/"), cases, artwork_ids)
+    add_source_checks(rows, document_keys)
+    contexts = {}
+    for n, case in enumerate((case for case in cases if not case["expected"]["refused"]), 1):
+        docs = retrieve(artwork_ids[case["artwork_slug"]], case["question"])
+        contexts[case["id"]] = [doc.page_content for doc in docs]
+        print(f"CONTEXT {n:02} {case['id']}: {len(docs)} chunks")
+    overlap = run_overlap(cases, truth)
 
     ragas = run_judges(rows, contexts)
     styles = judge_styles(rows)

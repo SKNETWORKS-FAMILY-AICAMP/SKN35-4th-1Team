@@ -12,8 +12,8 @@ import chromadb
 from chromadb.api import ClientAPI
 from chromadb.api.models.Collection import Collection
 
+from config.app_settings import PROJECT_ROOT, get_settings
 from llm.clients.embedding_client import model_name
-from app.core.config import PROJECT_ROOT, get_settings
 
 DISTANCE = "cosine"  # Chroma 기본값은 l2. 이미 만든 컬렉션의 거리 함수는 바꿀 수 없다
 

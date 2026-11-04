@@ -20,27 +20,22 @@ from __future__ import annotations
 import argparse
 import random
 from collections import Counter
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import delete, or_, select
-from sqlalchemy.dialects.mysql import insert
-from sqlalchemy.orm import Session
+from django.db import transaction
+from django.db.models import Q
 
-from app.core.config import get_settings
-from app.db.session import SessionLocal
-from app.models import (
-    Artist,
+from accounts.models import User, UserFollow, UserPreference
+from catalog.models import Artwork
+from config.app_settings import get_settings
+from library.models import (
     ArtistFollow,
-    Artwork,
     ArtworkLike,
     ArtworkView,
     Collection,
     CollectionItem,
     DiaryEntry,
-    User,
-    UserFollow,
-    UserPreference,
 )
 
 UID_PREFIX = "dummy:"
@@ -94,35 +89,32 @@ COLLECTION_NAMES = [
 
 
 def at_local(day: date, hour: int, minute: int = 0) -> datetime:
-    """앱 시간대의 그날 그 시각을 DB 저장 형식인 naive UTC 로 바꾼다."""
-    tz = ZoneInfo(get_settings().app_timezone)
-    return datetime.combine(day, time(hour, minute), tz).astimezone(UTC).replace(tzinfo=None)
+    """앱 시간대의 그날 그 시각."""
+    return datetime.combine(day, time(hour, minute), ZoneInfo(get_settings().app_timezone))
 
 
 def today_local() -> date:
     return datetime.now(ZoneInfo(get_settings().app_timezone)).date()
 
 
-def upsert_members(session: Session, stats: Counter) -> list[User]:
+def upsert_members(stats: Counter) -> list[User]:
     users = []
     for i, (nickname, style, list_public) in enumerate(MEMBERS, 1):
         uid = f"{UID_PREFIX}member-{i:02d}"
-        user = session.scalar(select(User).where(User.firebase_uid == uid))
+        user = User.objects.filter(firebase_uid=uid).first()
         if user is None:
-            user = User(
+            user = User.objects.create(
                 firebase_uid=uid,
                 email=f"member{i:02d}@{EMAIL_DOMAIN}",
                 nickname=nickname,
                 follow_list_public=list_public,
             )
-            session.add(user)
-            session.flush()
             stats["회원 추가"] += 1
         else:
             stats["회원 유지"] += 1
-        if session.get(UserPreference, user.id) is None:
+        if not UserPreference.objects.filter(user_id=user.id).exists():
             rng = random.Random(f"{SEED}-pref-{i}")
-            session.add(UserPreference(
+            UserPreference.objects.create(
                 user_id=user.id,
                 birth_year=rng.randint(1975, 2004),
                 explanation_priorities=rng.sample(PRIORITIES, 3),
@@ -130,23 +122,19 @@ def upsert_members(session: Session, stats: Counter) -> list[User]:
                 tone=style,
                 explanation_level="deep" if style == "professional" else "easy",
                 onboarding_completed=True,
-            ))
+            )
             stats["설정 추가"] += 1
         users.append(user)
     return users
 
 
-def insert_ignore(session: Session, model, stats: Counter, label: str, **values) -> None:
-    r = session.execute(insert(model).values(**values).prefix_with("IGNORE"))
-    stats[f"{label} 추가" if r.rowcount else f"{label} 유지"] += 1
+def insert_ignore(model, stats: Counter, label: str, key: dict, **defaults) -> None:
+    _, created = model.objects.get_or_create(**key, defaults=defaults)
+    stats[f"{label} 추가" if created else f"{label} 유지"] += 1
 
 
-def seed_activity(session: Session, users: list[User], stats: Counter) -> None:
-    artworks = session.execute(
-        select(Artwork.id, Artwork.title, Artist.name, Artist.id)
-        .join(Artist, Artist.id == Artwork.artist_id)
-        .order_by(Artwork.id)
-    ).all()
+def seed_activity(users: list[User], stats: Counter) -> None:
+    artworks = list(Artwork.objects.order_by("id").values_list("id", "title", "artist__name", "artist_id"))
     artist_ids = sorted({a[3] for a in artworks})
     today = today_local()
 
@@ -159,12 +147,12 @@ def seed_activity(session: Session, users: list[User], stats: Counter) -> None:
         pool = list(dict.fromkeys(pool))  # 순서 유지 중복 제거
 
         for artist_id in fav_artists:
-            insert_ignore(session, ArtistFollow, stats, "작가 팔로우", user_id=user.id, artist_id=artist_id,
+            insert_ignore(ArtistFollow, stats, "작가 팔로우", {"user_id": user.id, "artist_id": artist_id},
                           created_at=at_local(today - timedelta(days=rng.randint(10, DAYS_BACK)), 12))
 
         for work in pool[: rng.randint(6, 14)]:
             day = today - timedelta(days=rng.randint(0, DAYS_BACK))
-            insert_ignore(session, ArtworkLike, stats, "좋아요", user_id=user.id, artwork_id=work[0],
+            insert_ignore(ArtworkLike, stats, "좋아요", {"user_id": user.id, "artwork_id": work[0]},
                           created_at=at_local(day, rng.randint(9, 23), rng.randint(0, 59)))
 
         # 감상평: 작품은 회원 안에서 겹치지 않는다(작품당 1편). 날짜도 흩어 둔다.
@@ -172,11 +160,11 @@ def seed_activity(session: Session, users: list[User], stats: Counter) -> None:
         days = sorted(rng.sample(range(DAYS_BACK), n_diary), reverse=True)
         diary_works = rng.sample(pool, n_diary)
         templates = rng.sample(IMPRESSIONS, n_diary)
-        written_works = set(session.scalars(select(DiaryEntry.artwork_id).where(DiaryEntry.user_id == user.id)))
+        written_works = set(DiaryEntry.objects.filter(user_id=user.id).values_list("artwork_id", flat=True))
         for back, work, template in zip(days, diary_works, templates, strict=True):
             day = today - timedelta(days=back)
             viewed = at_local(day, rng.randint(10, 20), rng.randint(0, 59))
-            insert_ignore(session, ArtworkView, stats, "열람", user_id=user.id, artwork_id=work[0], viewed_on=day,
+            insert_ignore(ArtworkView, stats, "열람", {"user_id": user.id, "artwork_id": work[0], "viewed_on": day},
                           view_count=rng.randint(1, 4), first_viewed_at=viewed, last_viewed_at=viewed)
             # 난수는 건너뛸 때도 뽑아야 다음 회원·컬렉션 결과가 매번 같다.
             written = viewed + timedelta(minutes=rng.randint(5, 90))
@@ -184,38 +172,39 @@ def seed_activity(session: Session, users: list[User], stats: Counter) -> None:
             if work[0] in written_works:
                 stats["감상평 유지"] += 1
                 continue
-            session.add(DiaryEntry(
+            entry = DiaryEntry.objects.create(
                 user_id=user.id, entry_date=day, artwork_id=work[0],
-                content=template.format(title=work[1], artist=work[2]),
-                is_public=public, created_at=written, updated_at=written,
-            ))
+                content=template.format(title=work[1], artist=work[2]), is_public=public,
+            )
+            # auto_now 값을 쓴 시각으로 되돌린다
+            DiaryEntry.objects.filter(id=entry.id).update(created_at=written, updated_at=written)
             stats["감상평 추가"] += 1
 
         # 감상평과 별개로 둘러본 작품 열람 기록
         for work in rng.sample(pool, min(len(pool), 8)):
             day = today - timedelta(days=rng.randint(0, DAYS_BACK))
             viewed = at_local(day, rng.randint(9, 22), rng.randint(0, 59))
-            insert_ignore(session, ArtworkView, stats, "열람", user_id=user.id, artwork_id=work[0], viewed_on=day,
+            insert_ignore(ArtworkView, stats, "열람", {"user_id": user.id, "artwork_id": work[0], "viewed_on": day},
                           view_count=rng.randint(1, 3), first_viewed_at=viewed, last_viewed_at=viewed)
 
         for name, description in rng.sample(COLLECTION_NAMES, rng.randint(1, 3)):
             made = at_local(today - timedelta(days=rng.randint(1, DAYS_BACK)), 21)
-            col = session.scalar(select(Collection).where(Collection.user_id == user.id, Collection.name == name))
+            col = Collection.objects.filter(user_id=user.id, name=name).first()
             if col is None:
-                col = Collection(user_id=user.id, name=name, description=description, created_at=made, updated_at=made)
-                session.add(col)
-                session.flush()
+                col = Collection.objects.create(user_id=user.id, name=name, description=description)
+                Collection.objects.filter(id=col.id).update(created_at=made, updated_at=made)
                 stats["컬렉션 추가"] += 1
             else:
                 stats["컬렉션 유지"] += 1
             for work in rng.sample(pool, rng.randint(3, 6)):
-                insert_ignore(session, CollectionItem, stats, "컬렉션 담기", collection_id=col.id, artwork_id=work[0])
+                insert_ignore(CollectionItem, stats, "컬렉션 담기", {"collection_id": col.id, "artwork_id": work[0]})
 
 
-def seed_follows(session: Session, users: list[User], fans: list[User], stats: Counter) -> None:
+def seed_follows(users: list[User], fans: list[User], stats: Counter) -> None:
     today = today_local()
-    real_ids = list(session.scalars(
-        select(User.id).where(User.firebase_uid.not_like(f"{UID_PREFIX}%")).order_by(User.id)))
+    real_ids = list(
+        User.objects.exclude(firebase_uid__startswith=UID_PREFIX).order_by("id").values_list("id", flat=True)
+    )
     for idx, user in enumerate(users, 1):
         rng = random.Random(f"{SEED}-follow-{idx}")
         others = [u.id for u in users if u.id != user.id]
@@ -224,26 +213,24 @@ def seed_follows(session: Session, users: list[User], fans: list[User], stats: C
         targets += [rid for rid in real_ids if rng.random() < 0.35]
         for target in targets:
             day = today - timedelta(days=rng.randint(0, DAYS_BACK))
-            insert_ignore(session, UserFollow, stats, "회원 팔로우", follower_id=user.id, followee_id=target,
+            insert_ignore(UserFollow, stats, "회원 팔로우", {"follower_id": user.id, "followee_id": target},
                           created_at=at_local(day, rng.randint(9, 23)))
     for fan in fans:
         rng = random.Random(f"{SEED}-fan-{fan.id}")
         for user in rng.sample(users, 8):
-            insert_ignore(session, UserFollow, stats, "실제 계정→더미 팔로우", follower_id=fan.id, followee_id=user.id,
+            insert_ignore(UserFollow, stats, "실제 계정→더미 팔로우", {"follower_id": fan.id, "followee_id": user.id},
                           created_at=at_local(today - timedelta(days=rng.randint(0, 7)), 20))
 
 
-def remove(session: Session) -> Counter:
+def remove() -> Counter:
     stats: Counter = Counter()
-    ids = list(session.scalars(select(User.id).where(User.firebase_uid.like(f"{UID_PREFIX}%"))))
+    ids = list(User.objects.filter(firebase_uid__startswith=UID_PREFIX).values_list("id", flat=True))
     if not ids:
         return stats
     # users 를 지우면 CASCADE 로 나머지가 지워지지만, 행 수를 보여 주려고 팔로우는 먼저 센다.
-    r = session.execute(delete(UserFollow).where(
-        or_(UserFollow.follower_id.in_(ids), UserFollow.followee_id.in_(ids))))
-    stats["회원 팔로우 삭제"] += r.rowcount
-    r = session.execute(delete(User).where(User.id.in_(ids)))
-    stats["회원 삭제(설정·좋아요·감상평·컬렉션 등 포함)"] += r.rowcount
+    stats["회원 팔로우 삭제"] += UserFollow.objects.filter(
+        Q(follower_id__in=ids) | Q(followee_id__in=ids)).delete()[0]
+    stats["회원 삭제(설정·좋아요·감상평·컬렉션 등 포함)"] += User.objects.filter(id__in=ids).delete()[0]
     return stats
 
 
@@ -255,31 +242,27 @@ def main(argv: list[str] | None = None) -> int:
                         help="더미 8명을 팔로우할 실제 계정 이메일. 여러 번 줄 수 있다. 생략하면 dev-user")
     args = parser.parse_args(argv)
 
-    with SessionLocal() as session:
+    with transaction.atomic():
         if args.remove:
-            stats = remove(session)
+            stats = remove()
         else:
             if args.fan:
                 emails = [e.strip().lower() for e in args.fan]
-                fans = list(session.scalars(select(User).where(User.email.in_(emails))))
+                fans = list(User.objects.filter(email__in=emails))
                 missing = set(emails) - {f.email for f in fans}
                 if missing:
                     raise SystemExit("계정이 없습니다: " + ", ".join(sorted(missing)))
             else:
-                fans = list(session.scalars(select(User).where(User.firebase_uid == get_settings().dev_user_uid)))
+                fans = list(User.objects.filter(firebase_uid=get_settings().dev_user_uid))
             stats: Counter = Counter()
-            users = upsert_members(session, stats)
-            seed_activity(session, users, stats)
-            seed_follows(session, users, fans, stats)
+            users = upsert_members(stats)
+            seed_activity(users, stats)
+            seed_follows(users, fans, stats)
             print("팔로우하는 실제 계정: " + (", ".join(f.email for f in fans) or "(없음)"))
         for key, n in sorted(stats.items()):
             print(f"  {key}: {n}")
-        if args.dry_run:
-            session.rollback()
-            print("[dry-run] 커밋하지 않았습니다.")
-        else:
-            session.commit()
-            print("커밋했습니다.")
+        transaction.set_rollback(args.dry_run)
+    print("[dry-run] 커밋하지 않았습니다." if args.dry_run else "커밋했습니다.")
     return 0
 
 

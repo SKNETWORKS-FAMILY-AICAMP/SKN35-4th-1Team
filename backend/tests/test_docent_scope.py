@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from chat.schemas import ChatRequest, ChatTurn
 from llm.docent import scope as docent_scope
-from app.schemas.chat import ChatRequest, ChatTurn
 
 
 @pytest.mark.parametrize("kind,expected", [

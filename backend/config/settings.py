@@ -87,9 +87,9 @@ WSGI_APPLICATION = 'config.wsgi.application'
 _tidb_url = urlsplit(os.environ.get('TIDB_DATABASE_URL', ''))
 DATABASES = {
     'default': {
-        'ENGINE': 'django_tidb',
+        'ENGINE': 'config.db',
         'HOST': _tidb_url.hostname or os.environ.get('TIDB_HOST', ''),
-        'PORT': _tidb_url.port or int(os.environ.get('TIDB_PORT', 4000)),
+        'PORT': _tidb_url.port or int(os.environ.get('TIDB_PORT', '4000')),
         'USER': unquote(_tidb_url.username or '') or os.environ.get('TIDB_USERNAME', ''),
         'PASSWORD': unquote(_tidb_url.password or '') or os.environ.get('TIDB_PASSWORD', ''),
         'NAME': _tidb_url.path.lstrip('/') or os.environ.get('TIDB_DATABASE', ''),

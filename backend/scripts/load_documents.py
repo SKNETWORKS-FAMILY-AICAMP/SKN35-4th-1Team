@@ -15,13 +15,10 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 
-from sqlalchemy import delete, insert, select
-from sqlalchemy.orm import Session
+from django.db import transaction
 
-from app.db.session import SessionLocal
-from app.models import (
-    Artist,
-    Artwork,
+from catalog.models import Artist, Artwork
+from documents.models import (
     Document,
     DocumentArtist,
     DocumentArtwork,
@@ -40,11 +37,11 @@ def lookup(ids: dict[str, int], slug: str, what: str, doc_key: str) -> int:
     return ids[slug]
 
 
-def load(session: Session) -> tuple[Counter, dict[str, int]]:
+def load() -> tuple[Counter, dict[str, int]]:
     rows = load_processed("documents.jsonl")
-    artist_ids = dict(session.execute(select(Artist.slug, Artist.id)).all())
-    artwork_ids = dict(session.execute(select(Artwork.slug, Artwork.id)).all())
-    existing = {d.doc_key: d for d in session.scalars(select(Document))}
+    artist_ids = dict(Artist.objects.values_list("slug", "id"))
+    artwork_ids = dict(Artwork.objects.values_list("slug", "id"))
+    existing = {d.doc_key: d for d in Document.objects.all()}
     stats: Counter = Counter()
     changed_content: list[int] = []
 
@@ -54,26 +51,25 @@ def load(session: Session) -> tuple[Counter, dict[str, int]]:
         values["artwork_id"] = lookup(artwork_ids, row["artwork_slug"], "작품", key) if row["artwork_slug"] else None
         doc = existing.get(key)
         if doc is None:
-            session.add(Document(doc_key=key, **values))
+            Document.objects.create(doc_key=key, **values)
             stats["추가"] += 1
         elif any(getattr(doc, k) != v for k, v in values.items()):
             if doc.content != values["content"]:
                 changed_content.append(doc.id)
             for k, v in values.items():
                 setattr(doc, k, v)
+            doc.save()
             stats["갱신"] += 1
         else:
             stats["유지"] += 1
-    session.flush()
 
     # 검수 전 문서는 예전에 만든 벡터도 즉시 제거한다. 본문 변경이 없는 승인 취소도 포함한다.
-    pending_ids = set(session.scalars(select(Document.id).where(Document.needs_review.is_(True))))
+    pending_ids = set(Document.objects.filter(needs_review=True).values_list("id", flat=True))
     invalidate_ids = pending_ids | set(changed_content)
     if invalidate_ids:
-        stats["청크 삭제"] = session.execute(
-            delete(DocumentChunk).where(DocumentChunk.document_id.in_(invalidate_ids))).rowcount
+        stats["청크 삭제"] = DocumentChunk.objects.filter(document_id__in=invalidate_ids).delete()[0]
 
-    doc_ids = dict(session.execute(select(Document.doc_key, Document.id)).all())
+    doc_ids = dict(Document.objects.values_list("doc_key", "id"))
     loaded = [doc_ids[r["doc_key"]] for r in rows]
     links = {"작가 연결": [], "작품 연결": [], "근거 연결": []}
     for row in rows:
@@ -85,9 +81,8 @@ def load(session: Session) -> tuple[Counter, dict[str, int]]:
         links["근거 연결"] += [{"document_id": did, "basis_document_id": lookup(doc_ids, b, "근거 문서", key)}
                            for b in dict.fromkeys(row["basis_doc_keys"])]
     for name, model in (("작가 연결", DocumentArtist), ("작품 연결", DocumentArtwork), ("근거 연결", DocumentBasis)):
-        session.execute(delete(model).where(model.document_id.in_(loaded)))
-        if links[name]:
-            session.execute(insert(model), links[name])
+        model.objects.filter(document_id__in=loaded).delete()
+        model.objects.bulk_create(model(**link) for link in links[name])
     counts = {name: len(v) for name, v in links.items()}
     counts["processed 에 없는 DB 문서"] = len(set(doc_ids) - {r["doc_key"] for r in rows})
     counts["검토 필요 문서"] = sum(r["needs_review"] for r in rows)
@@ -99,12 +94,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="바뀔 내용만 세고 커밋하지 않음")
     args = parser.parse_args(argv)
 
-    with SessionLocal() as session:
-        stats, counts = load(session)
-        if args.dry_run:
-            session.rollback()
-        else:
-            session.commit()
+    with transaction.atomic():
+        stats, counts = load()
+        transaction.set_rollback(args.dry_run)
 
     print(f"문서: 추가 {stats['추가']} · 갱신 {stats['갱신']} · 유지 {stats['유지']}"
           + (f" · 본문 변경으로 청크 {stats['청크 삭제']}개 삭제" if stats["청크 삭제"] else ""))

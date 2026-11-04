@@ -21,11 +21,10 @@ from dataclasses import dataclass
 from itertools import batched
 
 from chromadb.api.models.Collection import Collection
-from sqlalchemy import select
-from sqlalchemy.orm import Session, undefer
 
+from catalog.models import ArtworkEmbedding
+from documents.models import DocumentChunk
 from llm.clients import chroma_client
-from app.models import Artwork, ArtworkEmbedding, Document, DocumentChunk
 
 # Chroma 한 번 호출에 넣는 건수. Chroma Cloud 는 요청당 300건 한도가 있어 그보다 작게 둔다
 # (서버의 get_max_batch_size() 는 1,000 을 알려 주지만 실제 쿼터는 300 이라 믿을 수 없음).
@@ -100,52 +99,44 @@ def _payload(records: Iterable[Record]) -> dict:
     }
 
 
-def chunk_ids(session: Session) -> set[int]:
-    return set(session.scalars(
-        select(DocumentChunk.id).join(Document, Document.id == DocumentChunk.document_id)
-        .where(Document.needs_review.is_(False))
-    ))
+def chunk_ids() -> set[int]:
+    return set(
+        DocumentChunk.objects.filter(document__needs_review=False).values_list("id", flat=True)
+    )
 
 
-def fetch_chunks(session: Session, ids: list[int]) -> Iterator[Record]:
+def fetch_chunks(ids: list[int]) -> Iterator[Record]:
     for part in batched(ids, TIDB_FETCH):
-        rows = session.execute(
-            select(DocumentChunk, Document.doc_key, Document.doc_type, Document.artwork_id)
-            .join(Document, Document.id == DocumentChunk.document_id)
-            .where(DocumentChunk.id.in_(part), Document.needs_review.is_(False))
-            .options(undefer(DocumentChunk.embedding))  # embedding 은 deferred 컬럼
-            .order_by(DocumentChunk.id)
+        rows = (
+            DocumentChunk.objects.filter(id__in=part, document__needs_review=False)
+            .select_related("document")
+            .order_by("id")
         )
-        for c, doc_key, doc_type, artwork_id in rows:
+        for c in rows:
             yield Record(
                 id=c.id,
                 embedding=c.embedding.tolist(),
                 document=c.content,
                 metadata={
                     "document_id": c.document_id,
-                    "doc_key": doc_key,
-                    "doc_type": doc_type.value,
-                    "artwork_id": artwork_id or 0,
+                    "doc_key": c.document.doc_key,
+                    "doc_type": c.document.doc_type,
+                    "artwork_id": c.document.artwork_id or 0,
                     "chunk_index": c.chunk_index,
                 },
             )
 
 
-def fetch_artworks(session: Session) -> list[Record]:
-    rows = session.execute(
-        select(ArtworkEmbedding, Artwork.title, Artwork.artist_id, Artwork.movement_id)
-        .join(Artwork, Artwork.id == ArtworkEmbedding.artwork_id)
-        .options(undefer(ArtworkEmbedding.embedding))
-        .order_by(ArtworkEmbedding.artwork_id)
-    )
+def fetch_artworks() -> list[Record]:
+    rows = ArtworkEmbedding.objects.select_related("artwork").order_by("artwork_id")
     return [
         Record(
             id=e.artwork_id,
             embedding=e.embedding.tolist(),
-            document=title,
-            metadata={"artist_id": artist_id, "movement_id": movement_id or 0},
+            document=e.artwork.title,
+            metadata={"artist_id": e.artwork.artist_id, "movement_id": e.artwork.movement_id or 0},
         )
-        for e, title, artist_id, movement_id in rows
+        for e in rows
     ]
 
 
@@ -155,9 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reset", action="store_true", help="두 컬렉션을 지우고 처음부터 다시 넣음")
     args = parser.parse_args(argv)
 
-    # import 할 때 DB 엔진을 만들므로 테스트에서 피하려고 여기서 가져옴
-    from app.core.config import get_settings
-    from app.db.session import SessionLocal
+    from config.app_settings import get_settings
 
     settings = get_settings()
     chroma = chroma_client.client()
@@ -171,10 +160,9 @@ def main(argv: list[str] | None = None) -> int:
 
     chunks = chroma_client.chunks_collection(chroma)
     artworks = chroma_client.artworks_collection(chroma)
-    with SessionLocal() as session:
-        ids = chunk_ids(session)
-        r1 = sync_chunks(chunks, ids, lambda new: fetch_chunks(session, new), args.dry_run)
-        r2 = sync_artworks(artworks, fetch_artworks(session), args.dry_run)
+    ids = chunk_ids()
+    r1 = sync_chunks(chunks, ids, fetch_chunks, args.dry_run)
+    r2 = sync_artworks(artworks, fetch_artworks(), args.dry_run)
 
     print(f"청크: 추가 {r1.added} · 삭제 {r1.deleted}  |  작품: upsert {r2.upserted} · 삭제 {r2.deleted}")
     if args.dry_run:

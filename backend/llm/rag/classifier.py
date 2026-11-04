@@ -1,6 +1,6 @@
 """질문을 검색 전에 분류한다 (수퍼바이저). LLM 을 부르지 않는 규칙 기반이라 빠르고 비용이 없다.
 
-    route = classify_artwork(db, artwork_id, question)   # /chat 에서는 이것만 부르면 된다
+    route = classify_artwork(artwork_id, question)   # /chat 에서는 이것만 부르면 된다
     route.kind  →  "rag" | "other_artist" | "refuse" | "recommend_similar" | "recommend_personal"
 
 | kind | 언제 | /chat 에서 할 일 |
@@ -118,27 +118,27 @@ class _Artist:
     pending_review: bool = False
 
 
-def classify_artwork(session, artwork_id: int, question: str) -> Route:
+def classify_artwork(artwork_id: int, question: str) -> Route:
     """/chat 용. 고른 작품의 작가를 찾고, 범위 밖 작가 이름이 그 작품의 범위 문서에 나오는지 TiDB 로 확인한다."""
-    from app.repositories import document_repository as repo
+    from documents import document_repository as repo
 
-    artist = repo.artwork_artist_slug(session, artwork_id)
+    artist = repo.artwork_artist_slug(artwork_id)
     if artist is None:
         return Route("refuse", "unknown_artwork", matched=("unknown_artwork",))
     scope: list[int] | None = None
 
     def named_in_scope(name: str) -> bool:
         nonlocal scope
-        scope = repo.scope_document_ids(session, artwork_id) if scope is None else scope
-        return repo.name_in_scope(session, scope, name)
+        scope = repo.scope_document_ids(artwork_id) if scope is None else scope
+        return repo.name_in_scope(scope, name)
 
     route = classify(question, artist, named_in_scope)
     others = tuple(s for s in route.artists if s != artist)
     if route.kind == "rag" and others and COMPARISON.search(question):
         # 범위 문서는 고른 작가 자료뿐이라, 다른 작가 쪽 근거는 그 작가를 함께 다룬 비교 문서에만 있다.
         # 없으면 LLM 이 상대 작가를 일반 지식으로 채워 비교하므로 (평가 compare-002: 모네·세잔) 검색 전에 거절한다.
-        scope = repo.scope_document_ids(session, artwork_id) if scope is None else scope
-        if not repo.comparison_covers(session, scope, others):
+        scope = repo.scope_document_ids(artwork_id) if scope is None else scope
+        if not repo.comparison_covers(scope, others):
             return Route("refuse", "no_comparison_source", artists=others, matched=("comparison_uncovered",))
     return route
 
