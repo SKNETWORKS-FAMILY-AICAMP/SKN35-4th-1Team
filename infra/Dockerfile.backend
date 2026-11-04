@@ -1,4 +1,4 @@
-# Django 백엔드 이미지. 빌드 위치는 레포 루트 (infra/docker-compose.yml 이 지정함)
+# Django 백엔드 이미지. 빌드 위치는 레포 루트 (infra/docker-compose.yaml 이 지정함)
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /bin/
@@ -12,11 +12,8 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # 의존성만 먼저 설치해서 코드가 바뀌어도 이 층은 캐시를 쓴다.
-# UV_GROUPS="--group legacy" 로 빌드하면 3차 FastAPI 앱(app.main:app)도 돌릴 수 있다.
-ARG UV_GROUPS=""
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project $UV_GROUPS \
- && uv pip install --python /opt/venv/bin/python "uvicorn[standard]==0.54.0"
+RUN uv sync --frozen --no-dev --no-install-project
 
 # 런타임에 분류기가 data/processed, data/mappings 를 읽는다
 COPY data/processed ./data/processed
@@ -27,7 +24,7 @@ RUN useradd --create-home --uid 1000 app && chown -R app /app
 USER app
 WORKDIR /app/backend
 
-# Django: config.asgi:application / 3차 FastAPI: app.main:app
+# Django + MCP (config/asgi.py)
 ENV APP_MODULE=config.asgi:application \
     WEB_CONCURRENCY=2
 

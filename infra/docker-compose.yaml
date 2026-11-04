@@ -1,6 +1,6 @@
 # 실행: 레포 루트에서
 #   ./infra/build-frontend.sh             # Flutter 빌드 → frontend/build/web
-#   docker compose -f infra/docker-compose.yml up -d --build
+#   docker compose -f infra/docker-compose.yaml up -d --build
 name: docentalk
 
 services:
@@ -8,13 +8,9 @@ services:
     build:
       context: ..
       dockerfile: infra/Dockerfile.backend
-      args:
-        UV_GROUPS: ${UV_GROUPS:-}
     env_file:
       - path: ../.env
         required: false
-    environment:
-      APP_MODULE: ${APP_MODULE:-config.asgi:application}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]

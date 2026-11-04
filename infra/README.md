@@ -7,7 +7,7 @@
 | 파일 | 내용 |
 | --- | --- |
 | `Dockerfile.backend` | Django 이미지 (Python 3.12 + uv + uvicorn) |
-| `docker-compose.yml` | `web`(Django) + `nginx` |
+| `docker-compose.yaml` | `web`(Django) + `nginx` |
 | `nginx/default.conf` | 정적 파일 서빙, API 프록시, SSE 버퍼링 끔 |
 | `build-frontend.sh` | Flutter Web 빌드 → `frontend/build/web` |
 
@@ -17,20 +17,14 @@
 
 ```bash
 ./infra/build-frontend.sh
-HTTP_PORT=8080 docker compose -f infra/docker-compose.yml up -d --build
+HTTP_PORT=8080 docker compose -f infra/docker-compose.yaml up -d --build
 curl http://localhost:8080/api/health
 ```
 
 - 화면: http://localhost:8080 · API 문서: http://localhost:8080/api/docs
 - 서버 없이 화면만 보려면 `ARTLOG_DEMO=true ./infra/build-frontend.sh`
-- 끄기: `docker compose -f infra/docker-compose.yml down`
-- 로그: `docker compose -f infra/docker-compose.yml logs -f web`
-
-**3차 FastAPI 앱으로 띄우기** (Django 이식이 끝나기 전 시연용 예비책):
-
-```bash
-UV_GROUPS="--group legacy" APP_MODULE=app.main:app docker compose -f infra/docker-compose.yml up -d --build
-```
+- 끄기: `docker compose -f infra/docker-compose.yaml down`
+- 로그: `docker compose -f infra/docker-compose.yaml logs -f web`
 
 ## EC2 배포
 
@@ -57,7 +51,7 @@ UV_GROUPS="--group legacy" APP_MODULE=app.main:app docker compose -f infra/docke
    rsync -az frontend/build/web/ ubuntu@<EC2>:SKN35-4th-1Team/frontend/build/web/
    ```
 
-5. 실행: `docker compose -f infra/docker-compose.yml up -d --build`
+5. 실행: `docker compose -f infra/docker-compose.yaml up -d --build`
 
 ## HTTPS (도메인 연결 후)
 
@@ -77,5 +71,4 @@ docker run --rm -v "$PWD/infra/certbot/www:/var/www/certbot" -v "$PWD/infra/cert
 ## 남은 것
 
 - `settings.py` 운영 설정: `STATIC_ROOT`(관리자 CSS), `SECURE_PROXY_SSL_HEADER`, `CSRF_TRUSTED_ORIGINS` — 고태민과 협의 후
-- uvicorn을 `pyproject.toml`에 넣기 (지금은 Dockerfile에서 따로 설치)
 - HTTPS 443 서버 블록, CD 자동 배포

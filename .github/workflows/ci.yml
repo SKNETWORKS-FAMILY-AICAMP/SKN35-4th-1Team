@@ -16,12 +16,11 @@ jobs:
         with:
           python-version: "3.12"
       - name: 의존성 설치
-        run: uv sync --frozen --group legacy
+        run: uv sync --frozen
       - name: pytest
         working-directory: backend
         run: uv run pytest -q
-      # 3차에서 옮겨 온 코드에 아직 고칠 항목이 남아 있어 경고만 남긴다.
-      # 정리가 끝나면 continue-on-error 를 지운다.
+      # 남은 항목이 정리되면 continue-on-error 를 지운다.
       - name: ruff
         continue-on-error: true
         run: uv run ruff check backend
