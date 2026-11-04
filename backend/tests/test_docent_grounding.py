@@ -121,6 +121,11 @@ def test_model_refusal_uses_server_copy():
 
 
 @pytest.mark.parametrize(("question", "answer", "refused"), [
+    (
+        "추성부도 묵서 번역이 '사람은 동물이' 다음에 어떻게 이어지는지 정확히 알려줘.",
+        "묵서 번역의 이어지는 문장을 원문에서 찾지 못해 정확한 문장을 제공할 수 없습니다.",
+        True,
+    ),
     # 평가 문항에서 실제로 나온 답변: 핵심 요청을 못 했는데 refused=false 로 왔던 경우
     (
         "쟁반 위와 카펫 위에 있는 사과가 각각 정확히 몇 개인지 세어줘.",

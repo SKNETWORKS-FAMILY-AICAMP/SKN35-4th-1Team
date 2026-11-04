@@ -185,7 +185,7 @@ def context(artwork: object, body: ChatRequest, docs: Sequence[Document]) -> dic
 # ponytail: 표현 목록 기반 규칙. 평가 답변 331건에서 오탐 0건이지만, 새 표현이 늘면 LLM 판정으로 바꾼다.
 _EXACT_REQUEST = re.compile(r"정확히|단정")
 _NO_EVIDENCE_STATEMENT = re.compile(
-    r"확인할 수 없|확인하기 어렵|알 수 없|알려드리기 어렵|언급되어 있지 않|언급되지 않"
+    r"확인할 수 없|제공할 수 없|확인하기 어렵|알 수 없|알려드리기 어렵|언급되어 있지 않|언급되지 않"
     r"|자료에 없|단정하기는? 어렵|남아 있지 않|전해지지 않|누락되어 있|자료만으로는[^.!?]{0,15}어렵"
 )
 _HEDGE = re.compile(r"지만|으나|다만")

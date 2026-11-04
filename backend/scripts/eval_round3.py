@@ -31,6 +31,7 @@ from config.app_settings import get_settings
 from documents import document_repository as document_repo
 from documents.models import Document, DocumentChunk
 from llm.clients import embedding_client
+from llm.rag.hybrid import hybrid_rank
 from llm.rag.retriever import retrieve
 
 QUESTIONS = Path(__file__).resolve().parents[1] / "tests" / "questions"

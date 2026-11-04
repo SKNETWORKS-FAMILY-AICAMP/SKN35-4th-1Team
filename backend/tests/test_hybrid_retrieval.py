@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.repositories import document_repository as repo
+from documents import document_repository as repo
 from llm.rag import retriever
 from llm.rag.hybrid import hybrid_rank, tokens
 
@@ -67,17 +67,17 @@ def test_retriever_puts_own_commentary_first_and_caps_each_document(monkeypatch)
         _chunk(10, 2, "사과와 오렌지 정물의 과일 배치와 흰 천", [0.6, 0.8], artwork_id=7, doc_type="artwork_commentary"),
         _chunk(20, 3, "세잔 연표", [0.5, 0.9]),
     ]
-    monkeypatch.setattr(repo, "scope_document_ids", lambda s, a: [1, 2, 3])
-    monkeypatch.setattr(repo, "pinned_chunk_ids", lambda s, a, scope: [])
+    monkeypatch.setattr(repo, "scope_document_ids", lambda a: [1, 2, 3])
+    monkeypatch.setattr(repo, "pinned_chunk_ids", lambda a, scope: [])
     monkeypatch.setattr(
         repo,
         "document_sources",
-        lambda s, ids: {i: SimpleNamespace(document_id=i, doc_key=f"doc-{i}", doc_type="t", title="제목",
+        lambda ids: {i: SimpleNamespace(document_id=i, doc_key=f"doc-{i}", doc_type="t", title="제목",
                                            source_name=None, source_url=None, license=None, basis_sources=[])
                         for i in ids},
     )
     docs = retriever.retrieve(
-        None, 7, "사과와 오렌지에서 흰 천은 어떤 역할이야?", collection=FakeCollection(chunks), embed=lambda _: q
+        7, "사과와 오렌지에서 흰 천은 어떤 역할이야?", collection=FakeCollection(chunks), embed=lambda _: q
     )
     assert docs[0].metadata["chunk_id"] == 10  # 고른 작품 해설이 맨 앞
     assert sum(d.metadata["document_id"] == 1 for d in docs) <= retriever.MAX_PER_DOC

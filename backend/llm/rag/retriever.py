@@ -35,10 +35,10 @@ import numpy as np
 from chromadb.api.models.Collection import Collection
 from langchain_core.documents import Document
 
-from app.repositories import document_repository as repo
 from documents import document_repository as repo
 from llm.clients import chroma_client, embedding_client
 from llm.rag.chunking import annotation_section
+from llm.rag.hybrid import hybrid_rank
 
 TOP_K = 5
 OWN_K = 3  # 고른 작품 자신의 해설에 보장하는 자리
