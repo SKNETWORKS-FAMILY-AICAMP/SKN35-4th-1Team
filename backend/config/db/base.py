@@ -20,6 +20,11 @@ class DatabaseWrapper(TiDBDatabaseWrapper):
     def _cursor(self, name=None):
         now = time.monotonic()
         idle = now - self.last_used > IDLE_SECONDS
+        # pymysql은 오류로 소켓이 닫히면 open=False가 된다. ping 없이 바로 알 수 있다.
+        closed = self.connection is not None and not getattr(self.connection, "open", True)
+        if closed and not self.in_atomic_block:
+            with suppress(Error):
+                self.close()
         suspect = idle or self.errors_occurred
         if self.connection is not None and suspect and not self.in_atomic_block:
             if self.is_usable():
