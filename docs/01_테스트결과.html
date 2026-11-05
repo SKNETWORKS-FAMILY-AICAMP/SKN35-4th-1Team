@@ -34,7 +34,7 @@
 <body>
 
 <h1>4차 테스트 결과서</h1>
-<div class="sub">SKN35 4차 1팀 · 1차 LangGraph 적용 · 2차 <code>refused</code> 정합성 보정 · 3차 하이브리드 검색 · 4차 Django 이식 · 로컬 환경 · 2026-11-04</div>
+<div class="sub">SKN35 4차 1팀 · 1차 LangGraph 적용 · 2차 <code>refused</code> 정합성 보정 · 3차 하이브리드 검색 · 4차 Django 이식 · 배포 통합 테스트 · 2026-11-04~05</div>
 
 <div class="box">
 <b>결론</b>
@@ -44,30 +44,31 @@
 <li><b>3차 (하이브리드 검색)</b>: 벡터 검색에 한국어 BM25를 RRF로 합쳤어요. <b>청크 Recall@5 0.787 → 0.870, MRR 0.778 → 0.852, nDCG@5 0.751 → 0.828</b>로, 3차부터 미달이던 세 지표가 모두 목표를 넘었어요. 근거가 좋아지면서 오거절·출처 지표도 <b>37/37(100%)</b>이 됐고, 종합은 <b>44/45 (97.8%)</b>예요.</li>
 <li><b>4차 (Django 이식, 최종)</b>: 백엔드를 FastAPI에서 Django + Ninja로 옮기고 DB 접근을 Django ORM으로 바꿨어요. API 54개와 조회 응답 393건이 이식 전과 같아요. 보정 규칙이 결론 문장도 보게 해서 <b><code>refused</code> 정합성 8/8</b>, 종합 <b>44/45 (97.8%)</b>예요.</li>
 <li><b>기준 변경</b>: 오거절·출처 지표의 목표를 3차의 100%에서 <b>95% 이상</b>으로 바꿨어요(아래 「기준 변경」). 4차 4차 결과는 바꾼 기준으로 통과하고, 3차 기준(100%)으로는 36/37로 미달이에요.</li>
-<li><b>남은 것</b>: P95가 <b>10.06초</b>로 목표(10초 이하)를 0.06초 넘었어요. 같은 코드 계열의 단독 측정도 8.9~11.1초로 흔들려서 배포 환경에서 다시 재서 판정해요. 남은 실패 1건(<code>prompt-008</code>)은 2차부터 기록한 알려진 경계 문항이에요.</li>
+<li><b>배포 환경 통합 테스트 (EC2)</b>: 배포 주소로 화면·API·인증·채팅·보안 31개 항목을 확인했고 <b>29/31 통과</b>예요. 같은 45문항 평가는 <b>44/45 (97.8%)</b>, <code>refused</code> 8/8이고, 로컬에서 0.06초 넘었던 <b>P95는 배포 환경에서 6.68초</b>로 목표를 통과했어요.</li>
+<li><b>남은 것</b>: (1) HTTPS가 아직 없어요(80번만 열림). (2) 서버가 쉬다가 받은 첫 요청이 느려요(첫 API 23.0초, 첫 채팅 12.3초). (3) <code>X-Content-Type-Options</code> 응답 헤더가 빠졌어요. (4) <code>prompt-008</code>은 2차부터 기록한 알려진 경계 문항이에요.</li>
 </ul>
 </div>
 
 <h2>한눈에 보기</h2>
-<p>45문항 종합 평가(<code>eval_round3</code>) 기준이에요. 판정은 4차 4차(최종) 결과 기준이에요.</p>
+<p>45문항 종합 평가(<code>eval_round3</code>) 기준이에요. 판정은 4차 4차(최종)와 배포 환경 결과 기준이고, 응답 시간은 배포 환경으로 판정해요.</p>
 <table class="wide">
-<tr><th>지표</th><th>목표</th><th>3차 최종<br>6회차 (10-15)</th><th>3차 같은 날<br>(11-04)</th><th>4차 1차<br>LangGraph</th><th>4차 2차<br>+ refused 보정</th><th>4차 3차<br>+ 하이브리드</th><th>4차 4차<br>Django 이식</th><th>판정</th></tr>
-<tr><td>HTTP 성공률</td><td>99% 이상</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="ok">통과</td></tr>
-<tr><td>종합 통과율</td><td>90% 이상</td><td class="n">43/45 (95.6%)</td><td class="n">41/45 (91.1%)</td><td class="n">42/45 (93.3%)</td><td class="n">44/45 (97.8%)</td><td class="n up">44/45 (97.8%)</td><td class="n">44/45 (97.8%)</td><td class="ok">통과</td></tr>
-<tr><td><code>refused</code> 정합성</td><td>별도 기록</td><td class="n">6/8</td><td class="n">6/8</td><td class="n">6/8</td><td class="n up">8/8</td><td class="n">7/8</td><td class="n up">8/8</td><td class="ok">해결</td></tr>
-<tr><td>정상 질문 오거절 없음</td><td>95% 이상<br><small>(3차 100%)</small></td><td class="n">37/37</td><td class="n">35/37 (94.6%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="n up">37/37 (100%)</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
-<tr><td>출처 포함 · 정합 · URL/라이선스</td><td>95% 이상<br><small>(3차 100%)</small></td><td class="n">37/37</td><td class="n">35/37 (94.6%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="n up">37/37 (100%)</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
-<tr><td>Faithfulness</td><td>0.90 이상</td><td class="n">0.9865</td><td class="n">0.9432</td><td class="n">0.9757</td><td class="n">0.9797</td><td class="n">0.9878</td><td class="n">0.9716</td><td class="ok">통과</td></tr>
-<tr><td>Answer Relevancy</td><td>0.85 이상</td><td class="n">1.0000</td><td class="n">0.9730</td><td class="n">1.0000</td><td class="n">1.0000</td><td class="n">0.9973</td><td class="n">1.0000</td><td class="ok">통과</td></tr>
-<tr><td>Answer Correctness</td><td>0.85 이상</td><td class="n">1.0000</td><td class="n">0.9703</td><td class="n">0.9986</td><td class="n">1.0000</td><td class="n">0.9946</td><td class="n">0.9811</td><td class="ok">통과</td></tr>
-<tr><td>금지 주장 (자동 키워드 검사)</td><td>0건</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">1 → 확인 후 0</td><td class="n">0</td><td class="ok">통과</td></tr>
-<tr><td>P50 / P95</td><td>P95 10초 이하</td><td class="n">4.40 / 5.86초</td><td class="n">4.55 / 8.06초</td><td class="n">4.66 / 7.98초</td><td class="n">5.17 / 8.81초</td><td class="n">4.82 / 7.51초</td><td class="n ng">5.56 / 10.06초</td><td class="ng">재측정 필요</td></tr>
-<tr><td>말투 easy / standard / deep</td><td>구분 가능</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.85/0.95</td><td class="n">0.80/0.90/0.95</td><td class="n">0.90/0.85/0.95</td><td class="ok">통과</td></tr>
-<tr><td>문서 Hit@5</td><td>90% 이상</td><td class="n">23/23</td><td class="n">—</td><td class="n">23/23</td><td class="n">—</td><td class="n">23/23</td><td class="n">23/23</td><td class="ok">통과</td></tr>
-<tr><td>청크 Recall@5</td><td>0.85 이상</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n up">0.8704</td><td class="n">0.8704</td><td class="ok">통과</td></tr>
-<tr><td>청크 MRR</td><td>0.80 이상</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n up">0.8518</td><td class="n">0.8518</td><td class="ok">통과</td></tr>
-<tr><td>청크 nDCG@5</td><td>0.80 이상</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n up">0.8281</td><td class="n">0.8281</td><td class="ok">통과</td></tr>
-<tr><td>백엔드 테스트</td><td>전체 통과</td><td class="n">158</td><td class="n">158</td><td class="n">158</td><td class="n">163</td><td class="n up">169</td><td class="n up">171</td><td class="ok">통과</td></tr>
+<tr><th>지표</th><th>목표</th><th>3차 최종<br>6회차 (10-15)</th><th>3차 같은 날<br>(11-04)</th><th>4차 1차<br>LangGraph</th><th>4차 2차<br>+ refused 보정</th><th>4차 3차<br>+ 하이브리드</th><th>4차 4차<br>Django 이식</th><th>배포 EC2<br>(11-05)</th><th>판정</th></tr>
+<tr><td>HTTP 성공률</td><td>99% 이상</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="n">45/45</td><td class="ok">통과</td></tr>
+<tr><td>종합 통과율</td><td>90% 이상</td><td class="n">43/45 (95.6%)</td><td class="n">41/45 (91.1%)</td><td class="n">42/45 (93.3%)</td><td class="n">44/45 (97.8%)</td><td class="n up">44/45 (97.8%)</td><td class="n">44/45 (97.8%)</td><td class="n">44/45 (97.8%)</td><td class="ok">통과</td></tr>
+<tr><td><code>refused</code> 정합성</td><td>별도 기록</td><td class="n">6/8</td><td class="n">6/8</td><td class="n">6/8</td><td class="n up">8/8</td><td class="n">7/8</td><td class="n up">8/8</td><td class="n">8/8</td><td class="ok">해결</td></tr>
+<tr><td>정상 질문 오거절 없음</td><td>95% 이상<br><small>(3차 100%)</small></td><td class="n">37/37</td><td class="n">35/37 (94.6%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="n up">37/37 (100%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
+<tr><td>출처 포함 · 정합 · URL/라이선스</td><td>95% 이상<br><small>(3차 100%)</small></td><td class="n">37/37</td><td class="n">35/37 (94.6%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="n up">37/37 (100%)</td><td class="n">36/37 (97.3%)</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
+<tr><td>Faithfulness</td><td>0.90 이상</td><td class="n">0.9865</td><td class="n">0.9432</td><td class="n">0.9757</td><td class="n">0.9797</td><td class="n">0.9878</td><td class="n">0.9716</td><td class="n">0.9878</td><td class="ok">통과</td></tr>
+<tr><td>Answer Relevancy</td><td>0.85 이상</td><td class="n">1.0000</td><td class="n">0.9730</td><td class="n">1.0000</td><td class="n">1.0000</td><td class="n">0.9973</td><td class="n">1.0000</td><td class="n">0.9932</td><td class="ok">통과</td></tr>
+<tr><td>Answer Correctness</td><td>0.85 이상</td><td class="n">1.0000</td><td class="n">0.9703</td><td class="n">0.9986</td><td class="n">1.0000</td><td class="n">0.9946</td><td class="n">0.9811</td><td class="n">0.9946</td><td class="ok">통과</td></tr>
+<tr><td>금지 주장 (자동 키워드 검사)</td><td>0건</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">1 → 확인 후 0</td><td class="n">0</td><td class="n">0</td><td class="ok">통과</td></tr>
+<tr><td>P50 / P95</td><td>P95 10초 이하</td><td class="n">4.40 / 5.86초</td><td class="n">4.55 / 8.06초</td><td class="n">4.66 / 7.98초</td><td class="n">5.17 / 8.81초</td><td class="n">4.82 / 7.51초</td><td class="n ng">5.56 / 10.06초</td><td class="n up">5.15 / 6.68초</td><td class="ok">통과 (배포)</td></tr>
+<tr><td>말투 easy / standard / deep</td><td>구분 가능</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.90/0.95</td><td class="n">0.90/0.85/0.95</td><td class="n">0.80/0.90/0.95</td><td class="n">0.90/0.85/0.95</td><td class="n">0.90/0.85/0.95</td><td class="ok">통과</td></tr>
+<tr><td>문서 Hit@5</td><td>90% 이상</td><td class="n">23/23</td><td class="n">—</td><td class="n">23/23</td><td class="n">—</td><td class="n">23/23</td><td class="n">23/23</td><td class="n">—</td><td class="ok">통과</td></tr>
+<tr><td>청크 Recall@5</td><td>0.85 이상</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n">0.7870</td><td class="n up">0.8704</td><td class="n">0.8704</td><td class="n">0.8704</td><td class="ok">통과</td></tr>
+<tr><td>청크 MRR</td><td>0.80 이상</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n">0.7778</td><td class="n up">0.8518</td><td class="n">0.8518</td><td class="n">0.8518</td><td class="ok">통과</td></tr>
+<tr><td>청크 nDCG@5</td><td>0.80 이상</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n">0.7514</td><td class="n up">0.8281</td><td class="n">0.8281</td><td class="n">0.8281</td><td class="ok">통과</td></tr>
+<tr><td>백엔드 테스트</td><td>전체 통과</td><td class="n">158</td><td class="n">158</td><td class="n">158</td><td class="n">163</td><td class="n up">169</td><td class="n up">171</td><td class="n">—</td><td class="ok">통과</td></tr>
 </table>
 <ul>
 <li>3차 6회차는 Railway 배포 결과이고, 나머지는 로컬 결과예요. 응답 시간은 환경 차이가 섞여 있어요.</li>
@@ -76,6 +77,7 @@
 <li>"—"는 그 실행에서 돌리지 않은 항목이에요. 2차는 검색 코드가 바뀌지 않아 1차 문서 검색 결과가 그대로 유효해요.</li>
 <li>청크 점수는 1·2차까지 벡터 순위, 4차 3차부터는 운영 검색기와 같은 하이브리드 순위예요. 같은 18문항의 벡터 순위 점수(0.787)도 비교용으로 계속 기록해요.</li>
 <li>4차 3차까지는 로컬 FastAPI, 4차 4차는 로컬 Django 결과예요. 4차 4차의 P95는 단독 실행으로 쟀고, 답변 모델 응답 시간이 포함돼요.</li>
+<li>"배포 EC2"는 같은 45문항을 배포 주소(<code>http://13.125.176.74</code>)로 보낸 결과예요. 청크 점수는 서버 응답이 아니라 같은 데이터로 계산하는 지표라 4차 4차와 같아요. 문서 검색과 백엔드 테스트는 로컬에서만 돌려서 "—"로 뒀어요.</li>
 <li>4차 3차의 금지 주장 자동 검사 1건(<code>detail-004</code>)은 "후대에 만들어진 '마지막 작품' 신화와 구분해야 한다"처럼 그 주장을 부정하는 문맥이에요. 글자만 보는 자동 검사의 오탐이라, 직접 확인한 뒤 0건으로 판정했어요.</li>
 </ul>
 
@@ -96,7 +98,7 @@
 <h2>공통 실행 환경</h2>
 <table>
 <tr><th>항목</th><th>값</th></tr>
-<tr><td>서버</td><td>1·2·3차: 로컬 FastAPI (4차 <code>127.0.0.1:8010</code>, 3차 비교군 <code>127.0.0.1:8011</code>). 4차: 로컬 Django (<code>uvicorn config.asgi:application</code>, <code>127.0.0.1:8000</code>)</td></tr>
+<tr><td>서버</td><td>1·2·3차: 로컬 FastAPI (4차 <code>127.0.0.1:8010</code>, 3차 비교군 <code>127.0.0.1:8011</code>). 4차: 로컬 Django (<code>uvicorn config.asgi:application</code>, <code>127.0.0.1:8000</code>). 배포: AWS EC2 <code>http://13.125.176.74</code> (Docker Compose, nginx → Django)</td></tr>
 <tr><td>데이터</td><td>TiDB Cloud, Chroma Cloud. <b>읽기만 함</b>. 토큰 없는 익명 요청이라 대화 저장 없음. 4차는 3차 데이터를 복사한 <code>4th_project</code> DB를 씀</td></tr>
 <tr><td>모델</td><td>답변·Judge <code>gpt-4.1-mini</code> (temperature 0.3), 임베딩 <code>text-embedding-3-small</code></td></tr>
 <tr><td>프롬프트</td><td><code>docent-grounded-1.5.1</code> (1·2·3·4차 모두 변경 없음)</td></tr>
@@ -361,6 +363,56 @@
 </table>
 <p>느린 문항이 실행마다 달라서 답변 모델의 응답 편차가 큰 것으로 보지만, 원인을 확정하지는 못했어요. Django는 요청마다 TiDB에 새로 연결해서 약 0.4초가 더 들어요. ASGI에서는 Django 문서가 영구 연결을 끄도록 안내해서 그대로 두었어요. 판정은 배포 환경 측정으로 해요.</p>
 
+<!-- ============================================================ -->
+<h2 class="round">배포 환경 통합 테스트 (EC2)</h2>
+<table>
+<tr><th>항목</th><th>값</th></tr>
+<tr><td>실행 일시</td><td>2026-11-05 10:20~10:39 KST</td></tr>
+<tr><td>대상</td><td><code>http://13.125.176.74</code> (AWS EC2, Docker Compose: nginx → Django uvicorn)</td></tr>
+<tr><td>요청한 곳</td><td>개발 PC (한국) → EC2. 응답 시간에는 인터넷 왕복이 포함돼요</td></tr>
+<tr><td>데이터</td><td>배포 서버가 쓰는 <code>4th_project</code> DB. <b>조회만 함</b>. 채팅은 로그인 없이 보내서 대화가 저장되지 않고, 로그인이 필요한 API는 토큰 없이 401이 나는지만 확인했어요</td></tr>
+</table>
+
+<h3>1. 배포 확인 31개 항목</h3>
+<table>
+<tr><th>영역</th><th>확인한 것</th><th>결과</th></tr>
+<tr><td>화면·라우팅 (8)</td><td><code>/</code> Flutter 화면, <code>flutter_bootstrap.js</code>, <code>main.dart.js</code>(gzip), Flutter 주소 새로고침(<code>/artworks/1</code>), <code>/api/health</code>, <code>/api/docs</code>, <code>/admin/</code> → 로그인 이동(302), 관리자 CSS</td><td class="ok">8/8</td></tr>
+<tr><td>공개 API (8)</td><td>사조 6개, 작가 10명, 작가 상세, 작품 277점, 작품 상세, 비슷한 작품, 공개 감상 피드, 없는 작품 404</td><td class="ok">8/8</td></tr>
+<tr><td>인증 경계 (6)</td><td>토큰 없이 프로필·컬렉션·좋아요·대화 기록 → 401, 잘못된 토큰 → 401, 토큰 없이 MCP → 401 (<code>WWW-Authenticate: Bearer</code>)</td><td class="ok">6/6</td></tr>
+<tr><td>채팅 (6)</td><td>JSON 답변 4갈래(RAG, 범위 밖 거절, 추천, 작가 단답), SSE 스트리밍(토큰 240개 → done, 출처 4개), nginx 버퍼링 없음(첫 토큰부터 마지막까지 1.64초에 걸쳐 나눠 도착)</td><td class="ok">6/6</td></tr>
+<tr><td>보안 (3)</td><td>허용 안 된 Origin에 CORS 허용 안 함</td><td class="ok">통과</td></tr>
+<tr><td></td><td><code>X-Content-Type-Options: nosniff</code> 응답 헤더</td><td class="ng">없음</td></tr>
+<tr><td></td><td>HTTPS(443)</td><td class="ng">연결 안 됨</td></tr>
+<tr><td colspan="2"><b>합계</b></td><td class="ok"><b>29/31</b></td></tr>
+</table>
+<p>실패한 2건은 기능 문제가 아니라 배포 설정이 남은 항목이에요. HTTPS는 <code>infra/README.md</code>의 「남은 것」에 이미 적혀 있고, 도메인을 연결한 뒤 인증서를 붙일 예정이에요. 지금은 로그인 토큰이 암호화되지 않은 HTTP로 오가니까, 발표 전에 HTTPS를 붙이는 게 좋아요.</p>
+
+<h3>2. 첫 요청 지연 (콜드 스타트)</h3>
+<table>
+<tr><th>요청</th><th>서버가 쉬다가 받은 첫 요청</th><th>그 뒤 (3번 반복)</th></tr>
+<tr><td>사조 목록 <code>/api/movements</code></td><td class="n ng">23.0초</td><td class="n">0.44~0.49초</td></tr>
+<tr><td>RAG 질문</td><td class="n ng">12.3초</td><td class="n">6.1~6.5초</td></tr>
+</table>
+<p>한 번 데워진 뒤에는 정상이에요. 첫 채팅이 느린 데는 형태소 분석기(Kiwi) 준비 약 1.4초와, 작가별 첫 청크 분석 약 0.5초가 포함돼요(로컬 측정). 첫 API의 23초는 서버 로그를 봐야 원인을 알 수 있어요. 아래 45문항 평가는 서버가 데워진 상태에서 시작했어요.</p>
+
+<h3>3. 45문항 종합 평가</h3>
+<table>
+<tr><th>지표</th><th>목표</th><th>로컬 Django (11-04)</th><th>배포 EC2 (11-05)</th><th>판정</th></tr>
+<tr><td>HTTP 성공률</td><td>99% 이상</td><td class="n">45/45</td><td class="n">45/45</td><td class="ok">통과</td></tr>
+<tr><td>종합 통과율</td><td>90% 이상</td><td class="n">44/45</td><td class="n">44/45 (97.8%)</td><td class="ok">통과</td></tr>
+<tr><td><code>refused</code> 정합성</td><td>별도 기록</td><td class="n">8/8</td><td class="n">8/8</td><td class="ok">통과</td></tr>
+<tr><td>정상 질문 오거절 없음 · 출처</td><td>95% 이상</td><td class="n">36/37</td><td class="n">36/37 (97.3%)</td><td class="ok">통과</td></tr>
+<tr><td>Faithfulness / Relevancy / Correctness</td><td>0.90 / 0.85 / 0.85</td><td class="n">0.972 / 1.000 / 0.981</td><td class="n">0.988 / 0.993 / 0.995</td><td class="ok">통과</td></tr>
+<tr><td>금지 주장 (자동 키워드 검사)</td><td>0건</td><td class="n">0</td><td class="n">0</td><td class="ok">통과</td></tr>
+<tr><td><b>P50 / P95</b></td><td>P95 10초 이하</td><td class="n ng">5.56 / 10.06초</td><td class="n ok">5.15 / 6.68초</td><td class="ok">통과</td></tr>
+<tr><td>가장 느린 응답</td><td>—</td><td class="n">14.23초</td><td class="n">6.85초</td><td>—</td></tr>
+<tr><td>말투 구분</td><td>구분 가능</td><td class="n">0.90/0.85/0.95</td><td class="n">0.90/0.85/0.95</td><td class="ok">통과</td></tr>
+</table>
+<ul>
+<li><b>P95 판정</b>: 배포 환경에서 6.68초로 목표를 통과했어요. 로컬 Django 실행의 10.06초는 P95를 정한 느린 3문항이 모두 서버 첫 요청이나 작가별 첫 질문이었고, 배포 실행에서는 가장 느린 응답도 6.85초였어요. 다만 이 측정은 서버가 데워진 상태라서, 첫 요청 지연(2번)은 따로 남겨요.</li>
+<li><b>남은 실패</b>: <code>prompt-008</code>(과잉 거절) 1건이에요. 로컬 Django 결과와 같은 문항이고, 2차부터 기록한 알려진 경계 문항이에요.</li>
+</ul>
+
 <h2>청크 단위 검색 — 1·2차 (벡터 순위)</h2>
 <p>1·2차는 검색을 바꾸지 않아서 3차 6회차와 소수점까지 같았어요. 4차 3차의 하이브리드 결과는 위 「3차 결과」에 있어요. 이 지표는 서버 답변을 거치지 않고 질문 임베딩과 청크 임베딩의 거리만으로 상위 5개를 뽑아 재요. 그래서 그래프나 검증 규칙을 바꿔도 움직이지 않고, LLM 무작위성도 없어요.</p>
 <table>
@@ -383,7 +435,9 @@
 <h2 style="margin-top:14px">다음 조치</h2>
 <table>
 <tr><th>순서</th><th>대상</th><th>조치</th><th>기대 효과</th></tr>
-<tr><td>0</td><td>P95 응답 시간 (10.06초)</td><td>EC2 배포 후 같은 45문항으로 다시 측정</td><td>배포 환경 기준의 최종 판정</td></tr>
+<tr><td>0</td><td>HTTPS 없음</td><td>도메인 연결 후 인증서 발급, nginx 443 블록 추가, 80은 HTTPS로 이동 (<code>infra/README.md</code>)</td><td>로그인 토큰이 암호화되어 전송</td></tr>
+<tr><td>0</td><td>첫 요청이 느림 (23.0초 / 12.3초)</td><td>배포 서버 로그로 원인 확인. 서버 시작 시 형태소 분석기와 청크 분석을 미리 준비(워밍업)</td><td>첫 사용자의 대기 시간 감소</td></tr>
+<tr><td>0</td><td><code>X-Content-Type-Options</code> 헤더 없음</td><td>nginx에 <code>add_header X-Content-Type-Options nosniff always;</code> 추가 (3차 Vercel 설정에는 있었음)</td><td>브라우저의 파일 형식 추측 차단</td></tr>
 <tr><td>1</td><td>경계 문항의 흔들림 (<code>evidence-002</code>, <code>prompt-008</code> 등)</td><td>관련도 기준선, "근거 부족하면 다시 찾기" 루프. 경계 문항은 여러 번 돌려 통과율로 비교</td><td>실행마다 달라지는 결과 감소</td></tr>
 <tr><td>2</td><td>보정 규칙의 표현 목록 한계</td><td>새 표현이 계속 나오면 LLM 판정(핵심 요청을 수행했는지)으로 바꾸기</td><td><code>refused</code> 정합성 8/8 안정화</td></tr>
 <tr><td>3</td><td>청크 검색 추가 개선 (선택)</td><td>영문 청크(<code>boundary-002</code>)와 바꿔 말한 질문(<code>detail-007</code>)은 Rerank 검토. 정답표 문항 늘리기</td><td>BM25에 유리한 정답표의 치우침 확인</td></tr>
@@ -397,6 +451,8 @@
 <li><code>docs/eval/rag-hybrid-local-2026-11-04.json</code>: 3차 하이브리드만 적용한 첫 실행 (보정 표현 추가 전)</li>
 <li><code>docs/eval/rag-hybrid-rule-local-2026-11-04.json</code>: 3차 최종 45문항 결과 (청크 벡터·하이브리드 점수 포함)</li>
 <li><code>docs/eval/rag-django-final-local-2026-11-04.json</code>: 4차 최종 45문항 결과 (Django)</li>
+<li><code>docs/eval/rag-deploy-ec2-2026-11-05.json</code>: 배포 환경 45문항 결과</li>
+<li><code>docs/eval/deploy-smoke-2026-11-05.json</code>: 배포 환경 확인 31개 항목 결과</li>
 <li><code>docs/eval/retrieval-django-final-local-2026-11-04.json</code>: 4차 최종 문서 검색 23문항 결과</li>
 <li><code>docs/eval/retrieval-langgraph-local-2026-11-04.json</code>, <code>retrieval-hybrid-local-2026-11-04.json</code>: 문서 검색 23문항 결과 (1차, 3차)</li>
 <li><code>docs/eval/docent-graph-equivalence/{3rd,4th}/</code>: 1차 동일성 비교 원시 기록</li>

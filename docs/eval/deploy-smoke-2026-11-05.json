@@ -1,0 +1,188 @@
+[
+ {
+  "group": "정적·라우팅",
+  "name": "GET / (Flutter 화면)",
+  "ok": true,
+  "detail": "200 29ms"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "GET /flutter_bootstrap.js",
+  "ok": true,
+  "detail": "200 8ms, gzip, cache=no-cache"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "GET /main.dart.js",
+  "ok": true,
+  "detail": "200 130ms, gzip, cache=None"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "Flutter 주소 새로고침 /artworks/1",
+  "ok": true,
+  "detail": "200"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "GET /api/health",
+  "ok": true,
+  "detail": "200 {\"status\":\"ok\"} 11ms"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "GET /api/docs",
+  "ok": true,
+  "detail": "200"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "GET /admin/ → 로그인으로 이동",
+  "ok": true,
+  "detail": "302 → /admin/login/?next=/admin/"
+ },
+ {
+  "group": "정적·라우팅",
+  "name": "관리자 화면 CSS",
+  "ok": true,
+  "detail": "/admin/static/admin/css/base.css → 200"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/movements",
+  "ok": true,
+  "detail": "6개 23046ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/artists",
+  "ok": true,
+  "detail": "10명 513ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/artists/{id}",
+  "ok": true,
+  "detail": "200 459ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/artworks",
+  "ok": true,
+  "detail": "277점 1244ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/artworks/{id}",
+  "ok": true,
+  "detail": "과일 바구니를 든 소년 548ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/artworks/{id}/similar",
+  "ok": true,
+  "detail": "3점 614ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "GET /api/diary/feed",
+  "ok": true,
+  "detail": "200 512ms"
+ },
+ {
+  "group": "공개 API",
+  "name": "없는 작품 404",
+  "ok": true,
+  "detail": "404"
+ },
+ {
+  "group": "인증 경계",
+  "name": "토큰 없이 GET /api/me/profile",
+  "ok": true,
+  "detail": "401"
+ },
+ {
+  "group": "인증 경계",
+  "name": "토큰 없이 GET /api/me/collections",
+  "ok": true,
+  "detail": "401"
+ },
+ {
+  "group": "인증 경계",
+  "name": "토큰 없이 PUT /api/artworks/236/like",
+  "ok": true,
+  "detail": "401"
+ },
+ {
+  "group": "인증 경계",
+  "name": "토큰 없이 GET /api/artworks/236/chat/messages",
+  "ok": true,
+  "detail": "401"
+ },
+ {
+  "group": "인증 경계",
+  "name": "잘못된 토큰",
+  "ok": true,
+  "detail": "401"
+ },
+ {
+  "group": "인증 경계",
+  "name": "토큰 없이 MCP",
+  "ok": true,
+  "detail": "401 Bearer"
+ },
+ {
+  "group": "채팅",
+  "name": "JSON RAG",
+  "ok": true,
+  "detail": "200 12280ms refused=False 출처 1 | 이 작품의 구도는 빛과 그림자의 대비를 중심으로 구성되어 있습니다. 왼쪽"
+ },
+ {
+  "group": "채팅",
+  "name": "JSON 범위 밖",
+  "ok": true,
+  "detail": "200 716ms refused=True 출처 0 | 해당 작품과 작가에 대해서만 대화 할 수 있어요."
+ },
+ {
+  "group": "채팅",
+  "name": "JSON 추천",
+  "ok": true,
+  "detail": "200 1537ms refused=False 출처 0 | 이 작품과 비슷한 결을 가진 작품을 더 둘러보세요. 『과일 바구니』 · "
+ },
+ {
+  "group": "채팅",
+  "name": "JSON 단답",
+  "ok": true,
+  "detail": "200 511ms refused=False 출처 0 | 이 작품의 작가는 카라바조입니다."
+ },
+ {
+  "group": "채팅",
+  "name": "SSE 스트리밍",
+  "ok": true,
+  "detail": "200 text/event-stream; charset=utf-8 이벤트 {'done': 1, 'token': 240} 출처 4"
+ },
+ {
+  "group": "채팅",
+  "name": "SSE 버퍼링 없음 (토큰이 나눠서 도착)",
+  "ok": true,
+  "detail": "첫 토큰 6.04초, 마지막까지 7.67초, 첫~끝 도착 간격 1.64초"
+ },
+ {
+  "group": "보안",
+  "name": "허용 안 된 Origin에 CORS 허용 없음",
+  "ok": true,
+  "detail": "400 ACAO=None"
+ },
+ {
+  "group": "보안",
+  "name": "X-Content-Type-Options",
+  "ok": false,
+  "detail": "None"
+ },
+ {
+  "group": "보안",
+  "name": "HTTPS(443)",
+  "ok": false,
+  "detail": "연결 안 됨 (ConnectError)"
+ }
+]
